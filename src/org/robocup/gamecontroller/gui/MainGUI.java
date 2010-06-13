@@ -1528,6 +1528,9 @@ public class MainGUI extends javax.swing.JFrame {
 			case Constants.GAMECONTROLLER_RETURN_MSG_MAN_UNPENALISE: // robot has been manually unpenalised
 				unpenalisePlayer(team, (byte) robotID);
 				break;
+            case Constants.GAMECONTROLLER_RETURN_MSG_REQUEST_PICKUP: // robot is requesting for pick up
+                applyPenalty(team, robotID, Constants.PENALTY_SPL_REQUEST_FOR_PICKUP);
+                break;
 			default:
 				System.out.println("Unknown message, " + message + ", from player " + robotID + " on team " + teamID);
 
