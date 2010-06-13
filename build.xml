@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="GameController" default="jar">
+	
+	<description>GameController for the RoboCup Standard Platform and Humanoid Leagues</description>
+	
+	<property name="src.dir"     value="src" />
+	<property name="config.dir"  value="config" />
+	
+	<property name="build.dir"   value="build" />
+	<property name="dist.dir"    value="dist" />
+	<property name="javadoc.dir" value="doc/api" />
+	
+	<property name="main-class"  value="org.robocup.gamecontroller.GameController" />
+	
+	<property name="lib.dir"     value="lib" />
+	
+	<path id="classpath">
+		<fileset dir="${lib.dir}" includes="**/*.jar" />
+	</path>
+	
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${dist.dir}" />
+		<mkdir dir="${javadoc.dir}" />
+	</target>
+	
+	<target name="compile" depends="init" description="compile the source">
+		<javac srcdir="${src.dir}" destdir="${build.dir}" source="1.5" target="1.5" />
+	</target>
+	
+	<target name="jar" depends="compile" description="deploy to jar file">
+		<jar destfile="${dist.dir}/${ant.project.name}.jar">
+			<manifest>
+				<attribute name="Main-Class" value="${main-class}" />
+			</manifest>
+			<fileset dir="${build.dir}" includes="**/*.class" />
+			<fileset dir="${config.dir}" />
+		</jar>
+	</target>
+	
+	<target name="jarclient" depends="compile" description="deploy client to jar file">
+		<jar destfile="${dist.dir}/DemoClient.jar">
+			<manifest>
+				<attribute name="Main-Class" value="org.robocup.gamecontroller.client.DemoClient" />
+			</manifest>
+			<fileset dir="${build.dir}" includes="**/*.class" />
+		</jar>
+	</target>
+	
+	<target name="run" depends="jar">
+		<java
+			dir="."
+			jar="${dist.dir}/${ant.project.name}.jar"
+			fork="true"
+			failonerror="true"
+		>
+			<arg line="-hlkid 9 10"/>
+			<classpath>
+				<path refid="classpath"/>
+			</classpath>
+		</java>
+	</target>
+	
+	<target name="runclient" depends="jarclient">
+		<java
+			dir="."
+			jar="${dist.dir}/DemoClient.jar"
+			fork="true"
+			failonerror="true"
+		>
+			<arg line="${clientargs}"/>
+			<classpath>
+				<path refid="classpath"/>
+			</classpath>
+		</java>
+	</target>
+	
+	<target name="javadoc" depends="init">
+		<mkdir dir="${javadoc.dir}" />
+		<javadoc
+			destdir="${javadoc.dir}"
+			failonerror="true"
+		>
+			<!--
+			source="${javac.source}"
+			notree="${javadoc.notree}"
+			use="${javadoc.use}"
+			nonavbar="${javadoc.nonavbar}"
+			noindex="${javadoc.noindex}"
+			splitindex="${javadoc.splitindex}"
+			author="${javadoc.author}"
+			version="${javadoc.version}"
+			windowtitle="${javadoc.windowtitle}"
+			private="${javadoc.private}"
+			additionalparam="${javadoc.additionalparam}"
+			-->
+			<!--
+			<classpath>
+				<path path="${javac.classpath}"/>
+			</classpath>
+			-->
+			<sourcepath>
+				<pathelement location="${src.dir}"/>
+			</sourcepath>
+		</javadoc>
+	</target>
+	
+	<target name="clean" description="clean up">
+		<delete dir="${build.dir}" />
+		<delete dir="${javadoc.dir}" />
+		<delete file="${dist.dir}/${ant.project.name}.jar" />
+		<delete file="${dist.dir}/DemoClient.jar" />
+		<!--
+		<delete>
+			<fileset dir="${dist.dir}" includes="*.zip" />
+		</delete>
+		-->
+	</target>
+
+	<target name="build" depends="jar, jarclient" description="compile the source" />
+	<target name="rebuild" depends="clean, build" description="clean and compile the source" />
+	
+	<target name="dist" depends="build">
+		<tstamp>  
+			<format property="timestamp" pattern="yyyyMMdd-HHmmss" />  
+		</tstamp>  
+		<zip destfile="${dist.dir}/GameController-${timestamp}.zip">
+			<fileset dir="${dist.dir}" includes="**/*.jar" />
+			<fileset dir="." includes="doc/**/*.*" />
+			<fileset dir="." includes="config/**/*.*" />
+			<fileset dir="." includes="LICENSE.txt"/>
+			<fileset dir="." includes="README.txt"/>
+			<fileset dir="." includes="CHANGES.txt"/>
+		</zip>
+	</target>
+
+</project>

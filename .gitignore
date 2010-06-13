@@ -1,0 +1,6 @@
+# .gitignore for Open challenge game controller
+
+# We don't want build files in the repo
+build
+dist
+doc
