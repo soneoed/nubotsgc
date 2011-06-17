@@ -1,137 +1,118 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="GameController" default="jar">
-	
-	<description>GameController for the RoboCup Standard Platform and Humanoid Leagues</description>
-	
-	<property name="src.dir"     value="src" />
-	<property name="config.dir"  value="config" />
-	
-	<property name="build.dir"   value="build" />
-	<property name="dist.dir"    value="dist" />
+<project name="GameController" basedir="." default="jars">
+
+	<description>GameController and GameStateVisualizer for the RoboCup Standard Platform and Humanoid Leagues</description>
+
+	<property name="build.dir" value="build" />
+	<property name="src.dir" value="src" />
+	<property name="dist.dir" value="dist" />
+
+	<property name="classes.dir" value="${build.dir}/classes" />
+	<property name="robocup.subdir" value="org/robocup" />
+	<property name="common.subdir" value="${robocup.subdir}/common" />
+	<property name="gc.subdir" value="${robocup.subdir}/gamecontroller" />
+	<property name="gsv.subdir" value="${robocup.subdir}/gamestatevisualizer" />
+
 	<property name="javadoc.dir" value="doc/api" />
-	
-	<property name="main-class"  value="org.robocup.gamecontroller.GameController" />
-	
-	<property name="lib.dir"     value="lib" />
-	
-	<path id="classpath">
-		<fileset dir="${lib.dir}" includes="**/*.jar" />
-	</path>
-	
-	<target name="init">
-		<mkdir dir="${build.dir}" />
-		<mkdir dir="${dist.dir}" />
-		<mkdir dir="${javadoc.dir}" />
+
+	<target name="init" description="Creates build directory">
+		<mkdir dir="${build.dir}/classes" />
 	</target>
-	
-	<target name="compile" depends="init" description="compile the source">
-		<javac srcdir="${src.dir}" destdir="${build.dir}" source="1.5" target="1.5" />
+
+	<target name="clean" description="Removes temporary directories">
+		<delete dir="bin" failonerror="false" />
+		<delete dir="${build.dir}" failonerror="false" />
+		<delete failonerror="false">
+			<fileset dir="${dist.dir}" includes="*.jar" />
+			<fileset dir="${dist.dir}" includes="*.zip" />
+		</delete>
+		<delete dir="${javadoc.dir}" failonerror="false" />
 	</target>
-	
-	<target name="jar" depends="compile" description="deploy to jar file">
-		<jar destfile="${dist.dir}/${ant.project.name}.jar">
+
+	<target name="compile" depends="init" description="Compiles the Java classes">
+		<javac srcdir="${src.dir}" destdir="${classes.dir}" source="1.5" target="1.5" debug="true" deprecation="true" verbose="true" />
+	</target>
+
+	<target name="jar-gc" depends="compile" description="Creates a jar-archive of the GameController">
+		<jar destfile="${dist.dir}/GameController.jar" basedir="${classes.dir}" includes="${common.subdir}/**/*.class ${gc.subdir}/**/*.class">
 			<manifest>
-				<attribute name="Main-Class" value="${main-class}" />
+				<attribute name="Main-Class" value="org.robocup.gamecontroller.GameController" />
 			</manifest>
-			<fileset dir="${build.dir}" includes="**/*.class" />
-			<fileset dir="${config.dir}" />
 		</jar>
 	</target>
-	
-	<target name="jarclient" depends="compile" description="deploy client to jar file">
-		<jar destfile="${dist.dir}/DemoClient.jar">
+
+	<target name="jar-gsv" depends="compile" description="Creates a jar-archive of the GameStateVisualizer">
+		<jar destfile="${dist.dir}/GameStateVisualizer.jar" basedir="${classes.dir}" includes="${common.subdir}/**/*.class ${gsv.subdir}/**/*.class">
 			<manifest>
-				<attribute name="Main-Class" value="org.robocup.gamecontroller.client.DemoClient" />
+				<attribute name="Main-Class" value="org.robocup.gamestatevisualizer.GameStateVisualizer" />
 			</manifest>
-			<fileset dir="${build.dir}" includes="**/*.class" />
 		</jar>
 	</target>
-	
-	<target name="run" depends="jar">
-		<java
-			dir="."
-			jar="${dist.dir}/${ant.project.name}.jar"
-			fork="true"
-			failonerror="true"
-		>
-			<arg line="-hlkid 9 10"/>
-			<classpath>
-				<path refid="classpath"/>
-			</classpath>
-		</java>
-	</target>
-	
-	<target name="runclient" depends="jarclient">
-		<java
-			dir="."
-			jar="${dist.dir}/DemoClient.jar"
-			fork="true"
-			failonerror="true"
-		>
-			<arg line="${clientargs}"/>
-			<classpath>
-				<path refid="classpath"/>
-			</classpath>
-		</java>
-	</target>
-	
-	<target name="javadoc" depends="init">
+
+	<target name="jars" depends="jar-gc,jar-gsv" description="Creates all jar-archives" />
+
+	<target name="javadoc">
 		<mkdir dir="${javadoc.dir}" />
-		<javadoc
-			destdir="${javadoc.dir}"
-			failonerror="true"
-		>
-			<!--
-			source="${javac.source}"
-			notree="${javadoc.notree}"
-			use="${javadoc.use}"
-			nonavbar="${javadoc.nonavbar}"
-			noindex="${javadoc.noindex}"
-			splitindex="${javadoc.splitindex}"
-			author="${javadoc.author}"
-			version="${javadoc.version}"
-			windowtitle="${javadoc.windowtitle}"
-			private="${javadoc.private}"
-			additionalparam="${javadoc.additionalparam}"
-			-->
-			<!--
-			<classpath>
-				<path path="${javac.classpath}"/>
-			</classpath>
-			-->
+		<javadoc destdir="${javadoc.dir}" failonerror="true">
 			<sourcepath>
-				<pathelement location="${src.dir}"/>
+				<pathelement location="${src.dir}" />
 			</sourcepath>
 		</javadoc>
 	</target>
-	
-	<target name="clean" description="clean up">
-		<delete dir="${build.dir}" />
-		<delete dir="${javadoc.dir}" />
-		<delete file="${dist.dir}/${ant.project.name}.jar" />
-		<delete file="${dist.dir}/DemoClient.jar" />
-		<!--
-		<delete>
-			<fileset dir="${dist.dir}" includes="*.zip" />
-		</delete>
-		-->
+
+	<target name="run-gc-spl" depends="jars">
+		<java dir="${dist.dir}" jar="${dist.dir}/GameController.jar" fork="true" failonerror="true">
+			<arg line="-spl 1 2"/>
+		</java>
 	</target>
 
-	<target name="build" depends="jar, jarclient" description="compile the source" />
-	<target name="rebuild" depends="clean, build" description="clean and compile the source" />
-	
-	<target name="dist" depends="build">
+	<target name="run-gc-hl" depends="jars">
+		<java dir="${dist.dir}" jar="${dist.dir}/GameController.jar" fork="true" failonerror="true">
+			<arg line="-hlkid 1 2"/>
+		</java>
+	</target>
+
+	<target name="run-gsv-spl" depends="jars">
+		<java dir="${dist.dir}" jar="${dist.dir}/GameStateVisualizer.jar" fork="true" failonerror="true">
+			<arg line="-spl"/>
+		</java>
+	</target>
+
+	<target name="run-gsv-hl" depends="jars">
+		<java dir="${dist.dir}" jar="${dist.dir}/GameStateVisualizer.jar" fork="true" failonerror="true">
+			<arg line="-hlkid"/>
+		</java>
+	</target>
+
+	<target name="dist-spl" depends="clean,jars" description="Creates the zip-archive for the official SPL-release">
 		<tstamp>  
-			<format property="timestamp" pattern="yyyyMMdd-HHmmss" />  
+			<format property="timestamp" pattern="yyyy-MM-dd_HH-mm-ss" />  
 		</tstamp>  
-		<zip destfile="${dist.dir}/GameController-${timestamp}.zip">
-			<fileset dir="${dist.dir}" includes="**/*.jar" />
+		<zip destfile="${dist.dir}/SplGameController_${timestamp}.zip">
+			<zipfileset dir="${dist.dir}/startscripts/spl" prefix="" />
+			<fileset dir="${dist.dir}" includes="*.jar" />
 			<fileset dir="." includes="doc/**/*.*" />
-			<fileset dir="." includes="config/**/*.*" />
+			<fileset dir="${dist.dir}" includes="config/spl/*.*" />
 			<fileset dir="." includes="LICENSE.txt"/>
 			<fileset dir="." includes="README.txt"/>
-			<fileset dir="." includes="CHANGES.txt"/>
 		</zip>
 	</target>
+
+	<target name="dist-hl" depends="clean,jars" description="Creates the zip-archive for the official HL-release">
+		<tstamp>  
+			<format property="timestamp" pattern="yyyy-MM-dd_HH-mm-ss" />  
+		</tstamp>  
+		<zip destfile="${dist.dir}/HlGameController_${timestamp}.zip">
+			<zipfileset dir="${dist.dir}/startscripts/hlkid" prefix="" />
+			<fileset dir="${dist.dir}" includes="*.jar" />
+			<fileset dir="." includes="doc/**/*.*" />
+			<fileset dir="${dist.dir}" includes="config/hl-kid/*.*" />
+			<fileset dir="${dist.dir}" includes="config/hl-teen/*.*" />
+			<fileset dir="." includes="LICENSE.txt"/>
+			<fileset dir="." includes="README.txt"/>
+		</zip>
+	</target>
+
+	<target name="dist" depends="dist-spl,dist-hl" description="Creates all zip-archives for the official releases" />
 
 </project>

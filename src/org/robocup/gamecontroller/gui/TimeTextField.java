@@ -58,7 +58,7 @@ public class TimeTextField extends JTextField {
 		label.setFont(this.getFont());
 		Dimension d = label.getPreferredSize();
 
-		return new Dimension(d.width, d.height);
+		return new Dimension(d.width + 10, d.height);
 	}
 
 	public Dimension getMinimumSize() {

@@ -17,17 +17,20 @@
 
 package org.robocup.gamecontroller.client;
 
-import javax.swing.*;
-
-import org.robocup.gamecontroller.Constants;
-import org.robocup.gamecontroller.data.GameState;
-import org.robocup.gamecontroller.data.RobotState;
-import org.robocup.gamecontroller.net.Broadcast;
-import org.robocup.gamecontroller.net.Listener;
-
 import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+
+import org.robocup.common.Constants;
+import org.robocup.common.data.GameState;
+import org.robocup.common.data.RobotInfo;
+import org.robocup.gamecontroller.data.RobotState;
+import org.robocup.gamecontroller.net.Broadcast;
+import org.robocup.gamecontroller.net.Listener;
 
 public class DemoClient extends WindowAdapter {
 
@@ -79,11 +82,14 @@ public class DemoClient extends WindowAdapter {
 
 	protected JFrame frame;
 
+	protected JLabel lbKickoff;
+	protected JLabel lbState;
 	protected JLabel lbTeam;
 	protected JLabel lbGoal;
 	protected JLabel lbRobot;
-	protected JLabel lbState;
+	protected JLabel lbPenalty;
 	protected JLabel lbRemaining;
+	protected JLabel lbPeriod;
 	protected JLabel lbScore;
 
 	protected short teamId;
@@ -107,6 +113,14 @@ public class DemoClient extends WindowAdapter {
 		frame.setContentPane(mainPane);
 		mainPane.setLayout(new GridLayout(0, 2));
 
+		mainPane.add(new JLabel("Kickoff:"));
+		lbKickoff = new JLabel("-");
+		mainPane.add(lbKickoff);
+
+		mainPane.add(new JLabel("State:"));
+		lbState = new JLabel("-");
+		mainPane.add(lbState);
+
 		mainPane.add(new JLabel("Team:"));
 		lbTeam = new JLabel("-");
 		mainPane.add(lbTeam);
@@ -119,19 +133,23 @@ public class DemoClient extends WindowAdapter {
 		lbRobot = new JLabel("-");
 		mainPane.add(lbRobot);
 
-		mainPane.add(new JLabel("State:"));
-		lbState = new JLabel("-");
-		mainPane.add(lbState);
+		mainPane.add(new JLabel("Penalty:"));
+		lbPenalty = new JLabel("-");
+		mainPane.add(lbPenalty);
 
 		mainPane.add(new JLabel("Time:"));
 		lbRemaining = new JLabel("--:--");
 		mainPane.add(lbRemaining);
 
+		mainPane.add(new JLabel("Period:"));
+		lbPeriod = new JLabel("--:--");
+		mainPane.add(lbPeriod);
+
 		mainPane.add(new JLabel("Score:"));
 		lbScore = new JLabel("-:-");
 		mainPane.add(lbScore);
 
-		frame.pack();
+		frame.setBounds(10, 10, 300, 200);
 		frame.setVisible(true);
 	}
 
@@ -150,9 +168,15 @@ public class DemoClient extends WindowAdapter {
 		}
 
 		if (found) {
-			lbTeam.setText(String.valueOf((int) rgcd.getTeamNumber(team)) + " - " + (team == Constants.TEAM_CYAN ? "cyan" : "magenta"));
-			lbGoal.setText(rgcd.getGoalColour(team) == Constants.GOAL_BLUE ? "blue" : "yellow");
-			lbRobot.setText(String.valueOf(robotId));
+			String kickoff = "";
+			if (rgcd.getKickOffTeam() == Constants.TEAM_BLUE) {
+				kickoff = "Blue";
+			} else if (rgcd.getKickOffTeam() == Constants.TEAM_RED) {
+				kickoff = "Red";
+			} else if (rgcd.getKickOffTeam() == Constants.DROPBALL) {
+				kickoff = "Drop ball";
+			}
+			lbKickoff.setText(kickoff);
 
 			String state = "";
 			if (rgcd.getGameState() == Constants.STATE_INITIAL) {
@@ -179,11 +203,98 @@ public class DemoClient extends WindowAdapter {
 
 			lbState.setText(state);
 
+			lbTeam.setText(String.valueOf((int) rgcd.getTeamNumber(team)) + " - " + (team == Constants.TEAM_CYAN ? "cyan" : "magenta"));
+			lbGoal.setText(rgcd.getGoalColour(team) == Constants.GOAL_BLUE ? "blue" : "yellow");
+			lbRobot.setText(String.valueOf(robotId));
+
+			String penalty = "none";
+			byte robot = (byte)(robotId - 1);
+			RobotInfo robotInfo = rgcd.getTeam(team).getPlayer(robot);
+			switch (robotInfo.getPenalty()) {
+				/*case Constants.PENALTY_SPL_BALL_HOLDING:
+					penalty = "Ball holding";
+					break;
+				case Constants.PENALTY_SPL_PLAYER_PUSHING:
+					penalty = "Player pushing";
+					break;
+				case Constants.PENALTY_SPL_OBSTRUCTION:
+					penalty = "Obstruction";
+					break;
+				case Constants.PENALTY_SPL_INACTIVE_PLAYER:
+					penalty = "Inactive player";
+					break;
+				case Constants.PENALTY_SPL_ILLEGAL_DEFENDER:
+					penalty = "Illegal defender";
+					break;
+				case Constants.PENALTY_SPL_LEAVING_THE_FIELD:
+					penalty = "Leaving the field";
+					break;*/
+				case Constants.PENALTY_SPL_PLAYING_WITH_HANDS:
+					penalty = "Playing with hands";
+					break;
+				//case Constants.PENALTY_SPL_REQUEST_FOR_PICKUP:
+				case Constants.PENALTY_HL_KID_REQUEST_FOR_PICKUP:
+				//case Constants.PENALTY_HL_TEEN_REQUEST_FOR_PICKUP:
+					penalty = "Request for pickup";
+					break;
+				case Constants.PENALTY_HL_KID_BALL_MANIPULATION:
+				//case Constants.PENALTY_HL_TEEN_BALL_MANIPULATION:
+					penalty = "Ball manipulation";
+					break;
+				case Constants.PENALTY_HL_KID_PHYSICAL_CONTACT:
+				//case Constants.PENALTY_HL_TEEN_PHYSICAL_CONTACT:
+					penalty = "Physical contact";
+					break;
+				case Constants.PENALTY_HL_KID_ILLEGAL_ATTACK:
+				//case Constants.PENALTY_HL_TEEN_ILLEGAL_ATTACK:
+					penalty = "Illegal attack";
+					break;
+				case Constants.PENALTY_HL_KID_ILLEGAL_DEFENSE:
+				//case Constants.PENALTY_HL_TEEN_ILLEGAL_DEFENSE:
+					penalty = "Illegal defense";
+					break;
+				case Constants.PENALTY_HL_KID_REQUEST_FOR_SERVICE:
+				//case Constants.PENALTY_HL_TEEN_REQUEST_FOR_SERVICE:
+					penalty = "Request for service";
+					break;
+
+				case Constants.PENALTY_MANUAL:
+					penalty = "Manual";
+					break;
+			}
+			if (penalty != "") {
+				penalty += " - " + String.valueOf(robotInfo.getSecsTillUnpenalised()) + "s";
+			}
+			lbPenalty.setText(penalty);
+
 			int remaining = rgcd.getEstimatedSecs();
 			int min = remaining / 60;
 			int secs = remaining % 60;
 			lbRemaining.setText(String.valueOf(min) + ":" + String.valueOf(secs));
 
+			String period = "";
+			switch (rgcd.getSecondaryGameState()) {
+				case Constants.STATE2_NORMAL:
+					period = "Halftime";
+					break;
+				case Constants.STATE2_PENALTYSHOOT:
+					period = "Penalty shoot";
+					break;
+				case Constants.STATE2_OVERTIME:
+					period = "Overtime";
+					break;
+				default:
+					period = "unknown";
+					break;
+			}
+			period += " - ";
+			if (rgcd.getHalf()) {
+				period += "First";
+			} else {
+				period += "Second";
+			}
+			lbPeriod.setText(period);
+			
 			lbScore.setText(String.valueOf(rgcd.getScore(team)) + ":" + String.valueOf(rgcd.getScore(opponent)));
 		}
 	}

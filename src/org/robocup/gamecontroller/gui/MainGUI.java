@@ -20,10 +20,10 @@ package org.robocup.gamecontroller.gui;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.Image;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
@@ -34,17 +34,21 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.util.Iterator;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.imageio.ImageIO;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
-import javax.swing.DefaultComboBoxModel;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -53,21 +57,18 @@ import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
+import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.border.TitledBorder;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-
-import org.robocup.gamecontroller.Constants;
-import org.robocup.gamecontroller.data.GameState;
+import org.robocup.common.Constants;
+import org.robocup.common.data.GameState;
+import org.robocup.common.rules.RuleBook;
+import org.robocup.common.util.LogFormatter;
 import org.robocup.gamecontroller.data.RobotState;
-import org.robocup.gamecontroller.data.TeamInfo;
 import org.robocup.gamecontroller.gui.PlayerButton.Mode;
 import org.robocup.gamecontroller.net.Broadcast;
 import org.robocup.gamecontroller.net.Listener;
-import org.robocup.gamecontroller.rules.RuleBook;
 
 /**
  * MainGUI is the starting class of the program.
@@ -77,16 +78,19 @@ import org.robocup.gamecontroller.rules.RuleBook;
  * 
  * @author willu@cse.unsw.edu.au shnl327@cse.unsw.edu.au
  * 
- *         Modified by: Tekin Mericli
+ *         Modified by: 
+ *         Tekin Mericli 
+ *         Thomas Liebschwager (d3ni@informatik.uni-bremen.de; University of Bremen)
  */
 public class MainGUI extends javax.swing.JFrame {
 
 	private static final long serialVersionUID = 1L;
 
 	private static Logger logger = Logger.getLogger("org.robocup.gamecontroller.gui.maingui");
-
-	public static final byte TEAM_0 = Constants.TEAM_BLUE;
-	public static final byte TEAM_1 = Constants.TEAM_RED;
+	FileHandler logHandler = null;
+	
+	public static final byte TEAM_1 = Constants.TEAM_BLUE;
+	public static final byte TEAM_2 = Constants.TEAM_RED;
 
 	// create a RoboCupGameControlData for use
 	private GameState data;
@@ -120,23 +124,27 @@ public class MainGUI extends javax.swing.JFrame {
 
 	int special_event = SPECIAL_EVENT_NONE;
 
-	int[] numPushing = new int[Constants.NUM_TEAMS];
+	int[] numEjected = new int[Constants.NUM_TEAMS];
 
 	/** Creates new form GUI */
 	// team numbers are given by GameController to initialize data structure
 	// and broadcast address to initialize the Broadcast class
 	public MainGUI(RuleBook rulebook, String[] teamNames, byte[] teamNumbers, String broadcastAddr, int port, int range, int numPlayers, boolean quiet) {
 		this.rulebook = rulebook;
-		numPlayers = rulebook.getNumPlayers();
+		this.numPlayers = rulebook.getNumPlayers();
 		secs = rulebook.getTimeSeconds();
 
-		this.teamNames = teamNames;
-		this.numPlayers = numPlayers;
-		this.quiet = quiet;
-		if (this.numPlayers == -1) {
+		if(numPlayers != -1) {
+			this.numPlayers = numPlayers;
+		}		
+		else if (this.numPlayers == -1) {
 			this.numPlayers = Constants.NUM_PLAYERS_SPL;
-		}
-
+		}	
+		
+		this.halfKickoffTeam = rulebook.getKickOffTeamColor();
+		this.teamNames = teamNames;
+		this.quiet = quiet;
+		
 		// create the GameController and RoboCupGameControlData
 		// based on the command line arguments
 		data = new GameState(rulebook, teamNumbers);
@@ -160,20 +168,34 @@ public class MainGUI extends javax.swing.JFrame {
 
 		lblTime.setSeconds(secs); // initialize clockface
 
-		TitledBorder borderTeam1 = new TitledBorder(null, teamNames[TEAM_0] + " - #" + teamNumbers[TEAM_0], TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12));
-		TitledBorder borderTeam2 = new TitledBorder(null, teamNames[TEAM_1] + " - #" + teamNumbers[TEAM_1], TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12));
+		TitledBorder borderTeam1 = new TitledBorder(null, teamNames[TEAM_1] + " - #" + teamNumbers[TEAM_1], TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12));
+		TitledBorder borderTeam2 = new TitledBorder(null, teamNames[TEAM_2] + " - #" + teamNumbers[TEAM_2], TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12));
 
+		// log handler
+		try {
+			logHandler = new FileHandler(Constants.LOG_FILENAME_GC, true); // append to logfile
+			logger.addHandler(logHandler);
+			logger.setLevel(Level.INFO);
+			LogFormatter formatter = new LogFormatter();
+		    logHandler.setFormatter(formatter);
+		} catch (IOException e) {
+
+		}
+		
+		logger.info("New Game: " + teamNames[0] + " (" + rulebook.getTeamColorName(0) + ") against " + teamNames[1] + " (" +rulebook.getTeamColorName(1) + ")");
+		
 		// initialize team panels with team names and numbers
-		pnlTeam1.setBorder(borderTeam1);
-		pnlTeam2.setBorder(borderTeam2);
+		pnlTeam[TEAM_1].setBorder(borderTeam1);
+		pnlTeam[TEAM_2].setBorder(borderTeam2);
 
-		JPanel widestPanel = teamNames[TEAM_0].length() > teamNames[TEAM_1].length() ? pnlTeam1 : pnlTeam2;
+		JPanel widestPanel = teamNames[TEAM_1].length() > teamNames[TEAM_2].length() ? pnlTeam[TEAM_1] : pnlTeam[TEAM_2];
 
-		pnlTeam1.setPreferredSize(borderTeam1.getMinimumSize(widestPanel));
-		pnlTeam2.setPreferredSize(borderTeam2.getMinimumSize(widestPanel));
+		pnlTeam[TEAM_1].setPreferredSize(borderTeam1.getMinimumSize(widestPanel));
+		pnlTeam[TEAM_2].setPreferredSize(borderTeam2.getMinimumSize(widestPanel));
 
 		int windowWidth = Math.min(Math.max(1024, this.getWidth()), Toolkit.getDefaultToolkit().getScreenSize().width);
-		this.setSize(windowWidth, this.getHeight());
+		this.setSize(new Dimension(windowWidth, this.getHeight()));
+		this.setMinimumSize(new Dimension(720, 580));
 		this.setLocationRelativeTo(null);
 
 		// pack();
@@ -243,6 +265,15 @@ public class MainGUI extends javax.swing.JFrame {
 		pack();
 	}
 
+	protected void initColorButton(JComponent button, Color color) {
+		if(System.getProperty("os.name").equals("Mac OS X")) {
+			button.setBackground(color);
+			button.setOpaque(true);
+		} else {
+			button.setBorder(new DoubleLineBorder(Color.GRAY, color));
+		}
+	}
+
 	protected JPanel initKickOffPanel() {
 		JPanel pnlKickOff = new JPanel();
 		pnlKickOff.setLayout(new GridLayout(0, 1, 5, 5));
@@ -250,21 +281,30 @@ public class MainGUI extends javax.swing.JFrame {
 
 		kickOffButtons = new ButtonGroup();
 
-		cmdTeam1KickOff = buildButton("<html><center>" + rulebook.getTeamName(0) + "<br/>KickOff</center></html>", "Click this button to select the " + rulebook.getTeamName(0) + " team for the next kick off.");
-		cmdTeam1KickOff.setBackground(rulebook.getTeamColor(0));
-		cmdTeam1KickOff.setSelected(true);
-		cmdTeam1KickOff.addActionListener(new KickOffAdapter(this, TEAM_0));
+		cmdTeamKickOff = new JToggleButton[Constants.NUM_TEAMS];
+		
+		UIManager.put ("ToggleButton.select", new Color(230, 230, 230)); 
+		UIManager.put ("Button.select", new Color(230, 230, 230)); 
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			cmdTeamKickOff[j] = buildButton("<html><center>" + rulebook.getTeamColorName(j) + "<br/>KickOff</center></html>", "Click this button to select the " + rulebook.getTeamColorName(j) + " team for the next kick off.");
+			cmdTeamKickOff[j].addActionListener(new KickOffAdapter(this, j));
+			initColorButton(cmdTeamKickOff[j], rulebook.getTeamColor(j));
+			kickOffButtons.add(cmdTeamKickOff[j]);
+			pnlKickOff.add(cmdTeamKickOff[j]);			
+		
+		}
+		
+		cmdTeamKickOff[halfKickoffTeam].setSelected(true);
 
-		kickOffButtons.add(cmdTeam1KickOff);
-		pnlKickOff.add(cmdTeam1KickOff);
+		if (rulebook.getDropBall()) {
+			cmdDropBall = buildButton("<html><center>DropBall</center></html>", "Click this button to select a drop ball.");
+			cmdDropBall.addActionListener(new KickOffAdapter(this, Constants.DROPBALL));
 
-		cmdTeam2KickOff = buildButton("<html><center>" + rulebook.getTeamName(1) + "<br/>KickOff</center></html>", "Click this button to select the " + rulebook.getTeamName(1) + " team for the next kick off.");
-		cmdTeam2KickOff.setBackground(rulebook.getTeamColor(1));
-		cmdTeam2KickOff.addActionListener(new KickOffAdapter(this, TEAM_1));
-
-		kickOffButtons.add(cmdTeam2KickOff);
-		pnlKickOff.add(cmdTeam2KickOff);
-
+			kickOffButtons.add(cmdDropBall);
+			pnlKickOff.add(cmdDropBall);
+		}
+		
 		return pnlKickOff;
 	}
 
@@ -301,21 +341,17 @@ public class MainGUI extends javax.swing.JFrame {
 		gameButtons.add(cmdFinish);
 		pnlMain.add(cmdFinish);
 
-		cmdTeam1DropIn = new JButton();
-		cmdTeam1DropIn.setBackground(rulebook.getTeamColor(0));
-		cmdTeam1DropIn.setText("<html><center>Out By<br/>" + rulebook.getTeamName(0) + "</center></html>");
-		cmdTeam1DropIn.setToolTipText("Click when the " + rulebook.getTeamName(0) + " Team kicks the ball out");
-		cmdTeam1DropIn.addActionListener(new DropInAdapter(this, TEAM_0));
+		cmdTeamDropIn = new JButton[Constants.NUM_TEAMS];
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			cmdTeamDropIn[j] = new JButton();
+			initColorButton(cmdTeamDropIn[j], rulebook.getTeamColor(j));
+			cmdTeamDropIn[j].setText("<html><center>Out By<br/>" + rulebook.getTeamColorName(j) + "</center></html>");
+			cmdTeamDropIn[j].setToolTipText("Click when the " + rulebook.getTeamColorName(j) + " Team kicks the ball out");
+			cmdTeamDropIn[j].addActionListener(new DropInAdapter(this, j));
 
-		pnlMain.add(cmdTeam1DropIn);
-
-		cmdTeam2DropIn = new JButton();
-		cmdTeam2DropIn.setBackground(rulebook.getTeamColor(1));
-		cmdTeam2DropIn.setText("<html><center>Out By<br/>" + rulebook.getTeamName(1) + "</center></html>");
-		cmdTeam2DropIn.setToolTipText("Click when the " + rulebook.getTeamName(1) + " Team kicks the ball out");
-		cmdTeam2DropIn.addActionListener(new DropInAdapter(this, TEAM_1));
-
-		pnlMain.add(cmdTeam2DropIn);
+			pnlMain.add(cmdTeamDropIn[j]);			
+		}
 
 		return pnlMain;
 	}
@@ -341,7 +377,7 @@ public class MainGUI extends javax.swing.JFrame {
 
 		penaltyButtons = new ButtonGroup();
 
-		Iterator penalties = rulebook.getPenalties();
+		Iterator<Short> penalties = rulebook.getPenalties();
 		int penalty = 0;
 		while (penalties.hasNext()) {
 			short code = ((Short) penalties.next()).shortValue();
@@ -369,90 +405,57 @@ public class MainGUI extends javax.swing.JFrame {
 
 		pnlTeams.setBorder(new TitledBorder(null, "Teams", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
 
-		pnlTeam1 = new JPanel();
-		pnlTeam1.setLayout(new GridLayout(0, 1, 5, 5));
-		pnlTeam1.setBackground(rulebook.getTeamColor(TEAM_0));
+		cmdTeam = new PlayerButton[Constants.NUM_TEAMS][numPlayers];
+		
+		pnlTeam = new JPanel[Constants.NUM_TEAMS];
+		lblTeamPushCount = new JLabel[Constants.NUM_TEAMS];
+		goalColourTeam = new JComboBox[Constants.NUM_TEAMS];
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			pnlTeam[j] = new JPanel();
+			pnlTeam[j].setLayout(new GridLayout(0, 1, 5, 5));
+			pnlTeam[j].setBackground(rulebook.getTeamColor(j));
 
-		if (rulebook.getChangeGoals()) {
-			JLabel lblTeam1 = new JLabel();
-			lblTeam1.setText("Own Goal Color:");
-			pnlTeam1.add(lblTeam1);
+			if (rulebook.getChangeGoals()) {
+				JLabel lblTeam1 = new JLabel();
+				lblTeam1.setText("Own Goal Color:");
+				pnlTeam[j].add(lblTeam1);
 
-			goalColourTeam1 = new JComboBox();
-			pnlTeam1.add(goalColourTeam1);
-			goalColourTeam1.addItem(rulebook.getGoalName(TEAM_0));
-			goalColourTeam1.addItem(rulebook.getGoalName(TEAM_1));
-			goalColourTeam1.setSelectedIndex(TEAM_0);
-		}
+				goalColourTeam[j] = new JComboBox();
+				pnlTeam[j].add(goalColourTeam[j]);
+				goalColourTeam[j].addItem(rulebook.getGoalColorName(0));
+				goalColourTeam[j].addItem(rulebook.getGoalColorName(1));
+				goalColourTeam[j].setSelectedIndex(j);
 
-		cmdTeam1 = new PlayerButton[numPlayers];
-
-		for (byte i = 0; i < numPlayers; i++) {
-			int player = i + 1;
-
-			cmdTeam1[i] = new PlayerButton(player, rulebook.getTeamName(TEAM_0));
-			cmdTeam1[i].setMargin(new Insets(2, 5, 2, 5));
-			cmdTeam1[i].addActionListener(new PlayerAdapter(this, TEAM_0, i));
-
-			pnlTeam1.add(cmdTeam1[i]);
-		}
-
-		pnlTeams.add(pnlTeam1);
-
-		pnlTeam2 = new JPanel();
-		pnlTeam2.setLayout(new GridLayout(0, 1, 5, 5));
-		pnlTeam2.setBackground(rulebook.getTeamColor(TEAM_1));
-
-		if (rulebook.getChangeGoals()) {
-			JLabel lblTeam2 = new JLabel();
-			lblTeam2.setText("Own Goal Color:");
-			pnlTeam2.add(lblTeam2);
-
-			goalColourTeam2 = new JComboBox();
-			pnlTeam2.add(goalColourTeam2);
-			goalColourTeam2.addItem(rulebook.getGoalName(TEAM_0));
-			goalColourTeam2.addItem(rulebook.getGoalName(TEAM_1));
-			goalColourTeam2.setSelectedIndex(TEAM_1);
-			goalColourTeam1.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent evt) {
-					cmdChangeGoalColours(evt);
-				}
-			});
-			goalColourTeam2.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent evt) {
-					cmdChangeGoalColours(evt);
-				}
-			});
-		}
-
-		cmdTeam2 = new PlayerButton[numPlayers];
-
-		for (byte i = 0; i < numPlayers; i++) {
-			int player = i + 1;
-
-			cmdTeam2[i] = new PlayerButton(player, rulebook.getTeamName(TEAM_1));
-			cmdTeam2[i].setMargin(new Insets(2, 5, 2, 5));
-			cmdTeam2[i].addActionListener(new PlayerAdapter(this, TEAM_1, i));
-
-			pnlTeam2.add(cmdTeam2[i]);
-		}
-
-		pnlTeams.add(pnlTeam2);
-
-		// if there is a limit for number of pushing penalties to be kept track of
-		if (rulebook.getUsePushingCounter()) {
-			lblTeam1PushCount = new JLabel("0", SwingConstants.CENTER);
-			lblTeam1PushCount.setFont(new Font("Dialog", 1, 50));
-			lblTeam1PushCount.setToolTipText(teamNames[TEAM_0] + " push count.");
-			lblTeam1PushCount.setBorder(new TitledBorder(null, "# pushes", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
-
-			lblTeam2PushCount = new JLabel("0", SwingConstants.CENTER);
-			lblTeam2PushCount.setFont(new Font("Dialog", 1, 50));
-			lblTeam2PushCount.setToolTipText(teamNames[TEAM_1] + " push count.");
-			lblTeam2PushCount.setBorder(new TitledBorder(null, "# pushes", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
-
-			pnlTeam1.add(lblTeam1PushCount);
-			pnlTeam2.add(lblTeam2PushCount);
+				goalColourTeam[j].addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent evt) {
+						cmdChangeGoalColours(evt);
+					}
+				});				
+			}			
+			
+			for (byte i = 0; i < numPlayers; i++) {
+				int player = i + 1;
+	
+				cmdTeam[j][i] = new PlayerButton(player, rulebook.getTeamColorName(j));
+				cmdTeam[j][i].setMargin(new Insets(2, 5, 2, 5));
+				cmdTeam[j][i].addActionListener(new PlayerAdapter(this, j, i));
+	
+				pnlTeam[j].add(cmdTeam[j][i]);
+			}			
+			
+			pnlTeams.add(pnlTeam[j]);
+			
+			// if there is a limit for number of pushing penalties to be kept track of
+			if (rulebook.getUsePushingCounter()) {
+				
+				lblTeamPushCount[j] = new JLabel("0", SwingConstants.CENTER);
+				lblTeamPushCount[j].setFont(new Font("Dialog", 1, 50));
+				lblTeamPushCount[j].setToolTipText(teamNames[j] + " push count.");
+				lblTeamPushCount[j].setBorder(new TitledBorder(null, "# pushes", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
+				pnlTeam[j].add(lblTeamPushCount[j]);
+			}
+			
 		}
 
 		return pnlTeams;
@@ -471,22 +474,11 @@ public class MainGUI extends javax.swing.JFrame {
 				teamLogos[i] = null;
 
 				for (int j = 0; j < imageTypes.length && teamLogos[i] == null; j++) {
-					String resource = "/" + rulebook.getConfigDirectory() + "/" + data.getTeamNumber((byte) i) + imageTypes[j];
+					String resource = File.separator + rulebook.getConfigDirectory() + File.separator + data.getTeamNumber((byte) i) + imageTypes[j];
 					File file = new File("config" + resource);
 					if (file.exists()) {
 						teamLogos[i] = ImageIO.read(file);
 						break;
-					}
-				}
-
-				if (teamLogos[i] == null) {
-					for (int j = 0; j < imageTypes.length && teamLogos[i] == null; j++) {
-						String resource = "/" + rulebook.getConfigDirectory() + "/" + data.getTeamNumber((byte) i) + imageTypes[j];
-						InputStream in = getClass().getResourceAsStream(resource);
-						if (in != null) {
-							teamLogos[i] = ImageIO.read(in);
-							break;
-						}
 					}
 				}
 
@@ -508,156 +500,123 @@ public class MainGUI extends javax.swing.JFrame {
 
 		JPanel pnlScore = new JPanel();
 		pnlScore.setLayout(new GridBagLayout());
+		pnlTeamScore = new JPanel[Constants.NUM_TEAMS];
+		pnlTeamScoreUpDown = new JPanel[Constants.NUM_TEAMS];
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			// JPanel pnlTeamScore = new JPanel();
+			pnlTeamScore[j] = new JPanel();
+			pnlTeamScore[j].setLayout(new GridBagLayout());
 
-		// JPanel pnlTeam1Score = new JPanel();
-		pnlTeam1Score = new JPanel();
-		pnlTeam1Score.setLayout(new GridBagLayout());
+			pnlTeamScoreUpDown[j] = new JPanel();
+			pnlTeamScoreUpDown[j].setLayout(new GridBagLayout());
+		}
 
-		// JPanel pnlTeam2Score = new JPanel();
-		pnlTeam2Score = new JPanel();
-		pnlTeam2Score.setLayout(new GridBagLayout());
-
-		JPanel pnlTeam1ScoreUpDown = new JPanel();
-		pnlTeam1ScoreUpDown.setLayout(new GridBagLayout());
-
-		JPanel pnlTeam2ScoreUpDown = new JPanel();
-		pnlTeam2ScoreUpDown.setLayout(new GridBagLayout());
 
 		GridBagConstraints constraints = new GridBagConstraints();
 		constraints.fill = GridBagConstraints.NONE;
 		constraints.anchor = GridBagConstraints.SOUTH;
 
-		constraints.gridx = 0;
-		constraints.gridy = 0;
 		constraints.weightx = 0.2;
 		constraints.weighty = 0.5;
 		constraints.gridheight = 1;
 		constraints.insets = new Insets(2, 2, 2, 2);
 
 		pnlScore.setBorder(new TitledBorder(null, "Score", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
+		lblTeamLogo = new JLabel[Constants.NUM_TEAMS];
+		teamLogo = new ImageIcon[Constants.NUM_TEAMS];
+		lblTeam = new JLabel[Constants.NUM_TEAMS];
+		lblTeamScore = new JLabel[Constants.NUM_TEAMS];
+		cmdTeamScoreUp = new JButton[Constants.NUM_TEAMS];
+		cmdTeamScoreDown = new JButton[Constants.NUM_TEAMS];
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			constraints.gridx = j;
+			constraints.gridy = 0;
+			final byte team = j; 
+			
+			lblTeamLogo[j] = new JLabel();
+			if (teamLogos[j] != null) {
+				teamLogo[j] = new ImageIcon(teamLogos[j]);
+				lblTeamLogo[j].setIcon(teamLogo[j]);
+			}
+			
+			lblTeam[j] = new JLabel();
+			lblTeam[j].setFont(new Font("Dialog", 1, 15));
+			lblTeam[j].setForeground(rulebook.getTeamColor(j));
+			lblTeam[j].setText(teamNames[j]);
+			lblTeam[j].setToolTipText(rulebook.getTeamColorName(j) + " team score.");
+			
+			pnlTeamScore[j].add(lblTeamLogo[j], constraints);
+			
+			constraints.gridy = 1;	
+			
 
-		lblTeam1Logo = new JLabel();
-		if (teamLogos[0] != null) {
-			team1Logo = new ImageIcon(teamLogos[0]);
-			lblTeam1Logo.setIcon(team1Logo);
+			pnlTeamScore[j].add(lblTeam[j], constraints);
+
+			lblTeamScore[j] = new JLabel();
+			lblTeamScore[j].setFont(new Font("Dialog", 1, 68));
+			lblTeamScore[j].setText("0");
+			lblTeamScore[j].setToolTipText(rulebook.getTeamColorName(j) + " team score.");
+
+			constraints.gridy = 2;
+
+			pnlTeamScore[j].add(lblTeamScore[j], constraints);
+
+			cmdTeamScoreUp[j] = new JButton();
+			cmdTeamScoreUp[j].setText("+");
+			cmdTeamScoreUp[j].setFont(new Font("Dialog", 0, 20));
+			cmdTeamScoreUp[j].setSize(25, 25);
+			cmdTeamScoreUp[j].setToolTipText("Click to increment " + rulebook.getTeamColorName(j) + " score.");
+			cmdTeamScoreUp[j].addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent evt) {
+					cmdTeamScoreUp_clicked(evt, team);	
+				}
+			});
+
+			constraints.gridy = 3;
+
+			pnlTeamScoreUpDown[j].add(cmdTeamScoreUp[j]);
+
+			cmdTeamScoreDown[j] = new JButton();
+			cmdTeamScoreDown[j].setText("-");
+			cmdTeamScoreDown[j].setFont(new Font("Dialog", 0, 20));
+			cmdTeamScoreDown[j].setSize(25, 25);
+			cmdTeamScoreDown[j].setToolTipText("Click to decrement " + rulebook.getTeamColorName(j) + " score.");
+			cmdTeamScoreDown[j].addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent evt) {
+					cmdTeamScoreDown_clicked(evt, team);
+				}
+			});
+
+			pnlTeamScoreUpDown[j].add(cmdTeamScoreDown[j]);
+			pnlTeamScore[j].add(pnlTeamScoreUpDown[j], constraints);			
 		}
-
-		lblTeam1 = new JLabel();
-		lblTeam1.setFont(new Font("Dialog", 1, 15));
-		lblTeam1.setForeground(rulebook.getTeamColor(0));
-		lblTeam1.setText(teamNames[0]);
-		lblTeam1.setToolTipText(rulebook.getTeamName(0) + " team score.");
-
-		pnlTeam1Score.add(lblTeam1Logo, constraints);
-		constraints.gridy = 1;
-
-		pnlTeam1Score.add(lblTeam1, constraints);
-
-		lblTeam1Score = new JLabel();
-		lblTeam1Score.setFont(new Font("Dialog", 1, 68));
-		lblTeam1Score.setText("0");
-		lblTeam1Score.setToolTipText(rulebook.getTeamName(0) + " team score.");
-
-		constraints.gridy = 2;
-
-		pnlTeam1Score.add(lblTeam1Score, constraints);
-
-		cmdTeam1ScoreUp = new JButton();
-		cmdTeam1ScoreUp.setText("+");
-		cmdTeam1ScoreUp.setFont(new Font("Dialog", 0, 15));
-		cmdTeam1ScoreUp.setToolTipText("Click to increment " + rulebook.getTeamName(0) + " score.");
-		cmdTeam1ScoreUp.setMargin(new Insets(2, 5, 2, 5));
-		cmdTeam1ScoreUp.addMouseListener(new MouseAdapter() {
-			public void mouseClicked(MouseEvent evt) {
-				cmdTeam1ScoreUp_clicked(evt);
-			}
-		});
-
-		constraints.gridy = 3;
-
-		pnlTeam1ScoreUpDown.add(cmdTeam1ScoreUp);
-
-		cmdTeam1ScoreDown = new JButton();
-		cmdTeam1ScoreDown.setText("-");
-		cmdTeam1ScoreDown.setFont(new Font("Dialog", 0, 15));
-		cmdTeam1ScoreDown.setToolTipText("Click to decrement " + rulebook.getTeamName(0) + " score.");
-		cmdTeam1ScoreDown.setMargin(new Insets(2, 5, 2, 5));
-		cmdTeam1ScoreDown.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent evt) {
-				cmdTeam1ScoreDown_clicked(evt);
-			}
-		});
-
-		pnlTeam1ScoreUpDown.add(cmdTeam1ScoreDown);
-		pnlTeam1Score.add(pnlTeam1ScoreUpDown, constraints);
-
-		lblTeam2Logo = new JLabel();
-		if (teamLogos[1] != null) {
-			team2Logo = new ImageIcon(teamLogos[1]);
-			lblTeam2Logo.setIcon(team2Logo);
-		}
-
-		lblTeam2 = new JLabel();
-		lblTeam2.setFont(new Font("Dialog", 1, 15));
-		lblTeam2.setForeground(rulebook.getTeamColor(1));
-		lblTeam2.setText(teamNames[1]);
-		lblTeam2.setToolTipText(rulebook.getTeamName(1) + " team score.");
-
-		constraints.gridx = 1;
-		constraints.gridy = 0;
-
-		pnlTeam2Score.add(lblTeam2Logo, constraints);
-
-		constraints.gridy = 1;
-
-		pnlTeam2Score.add(lblTeam2, constraints);
-
-		lblTeam2Score = new JLabel();
-		lblTeam2Score.setFont(new Font("Dialog", 1, 68));
-		lblTeam2Score.setText("0");
-		lblTeam2Score.setToolTipText(rulebook.getTeamName(1) + " team score.");
-
-		constraints.gridy = 2;
-
-		pnlTeam2Score.add(lblTeam2Score, constraints);
-
-		cmdTeam2ScoreUp = new JButton();
-		cmdTeam2ScoreUp.setText("+");
-		cmdTeam2ScoreUp.setFont(new Font("Dialog", 0, 15));
-		cmdTeam2ScoreUp.setToolTipText("Click to increment " + rulebook.getTeamName(1) + " score.");
-		cmdTeam2ScoreUp.setMargin(new Insets(2, 5, 2, 5));
-		cmdTeam2ScoreUp.addMouseListener(new MouseAdapter() {
-			public void mouseClicked(MouseEvent evt) {
-				cmdTeam2ScoreUp_clicked(evt);
-			}
-		});
-
-		constraints.gridy = 3;
-
-		pnlTeam2ScoreUpDown.add(cmdTeam2ScoreUp);
-
-		cmdTeam2ScoreDown = new JButton();
-		cmdTeam2ScoreDown.setText("-");
-		cmdTeam2ScoreDown.setFont(new Font("Dialog", 0, 15));
-		cmdTeam2ScoreDown.setToolTipText("Click to decrement " + rulebook.getTeamName(1) + " score.");
-		cmdTeam2ScoreDown.setMargin(new java.awt.Insets(2, 5, 2, 5));
-		cmdTeam2ScoreDown.addMouseListener(new MouseAdapter() {
-			public void mouseClicked(MouseEvent evt) {
-				cmdTeam2ScoreDown_clicked(evt);
-			}
-		});
-
-		pnlTeam2ScoreUpDown.add(cmdTeam2ScoreDown);
-		pnlTeam2Score.add(pnlTeam2ScoreUpDown, constraints);
 
 		constraints.gridy = 0;
 		constraints.gridx = 0;
 
-		pnlScore.add(pnlTeam1Score, constraints);
+		pnlScore.add(pnlTeamScore[TEAM_1], constraints);
 
 		constraints.gridx = 1;
 
-		pnlScore.add(pnlTeam2Score, constraints);
+		if (!rulebook.getSwitchTeamColorBetweenHalfs()) {
+			cmdSwitchTeams = new JButton();
+			cmdSwitchTeams.setText("< --- >");
+			cmdSwitchTeams.setFont(new Font("Dialog", 0, 15));
+			cmdSwitchTeams.setToolTipText("Click to switch team colour.");
+			cmdSwitchTeams.setMargin(new Insets(2, 5, 2, 5));
+			cmdSwitchTeams.addMouseListener(new MouseAdapter() {
+				public void mouseClicked(MouseEvent evt) {
+					cmdSwitchTeams_clicked(evt);
+				}
+			});
+			pnlScore.add(cmdSwitchTeams, constraints);
+
+			constraints.gridx = 2;
+		}
+
+		pnlScore.add(pnlTeamScore[TEAM_2], constraints);
 
 		return pnlScore;
 	}
@@ -719,9 +678,18 @@ public class MainGUI extends javax.swing.JFrame {
 		pnlTime.add(cmdTimeReset, constraints);
 
 		cmbHalf = new JComboBox();
-		// cmbHalf.setModel(new DefaultComboBoxModel(new String[] { "First Half", "Second Half", "Penalty Shoot A", "Penalty Shoot B" }));
-		cmbHalf.setModel(new DefaultComboBoxModel(new String[] { "First Half", "Second Half", "<html>Penalty Shoot<br/>&nbsp;&nbsp;" + teamNames[TEAM_0] + "</html>", "<html>Penalty Shoot<br/>&nbsp;&nbsp;" + teamNames[TEAM_1] + "</html>" }));
-		cmbHalf.setToolTipText("Select whether the game is in first half or second half. Changing this option will switch the teams around automatically.");
+		comboBoxModelHalf = new NamedComboBoxModel();
+		comboBoxModelHalf.addElement("First Half", Constants.PLAY_MODE_FIRST_HALF);
+		comboBoxModelHalf.addElement("Second Half", Constants.PLAY_MODE_SECOND_HALF);
+		if (rulebook.getOvertimeSeconds() > 0) {
+			comboBoxModelHalf.addElement("First Overtime", Constants.PLAY_MODE_FIRST_OVERTIME);
+			comboBoxModelHalf.addElement("Second Overtime", Constants.PLAY_MODE_SECOND_OVERTIME);
+		}
+		comboBoxModelHalf.addElement("<html>Penalty Shoot<br/>&nbsp;&nbsp;" + teamNames[TEAM_1] + "</html>", Constants.PLAY_MODE_FIRST_TEAM_PENALTY);
+		comboBoxModelHalf.addElement("<html>Penalty Shoot<br/>&nbsp;&nbsp;" + teamNames[TEAM_2] + "</html>", Constants.PLAY_MODE_SECOND_TEAM_PENALTY);
+
+		cmbHalf.setModel(comboBoxModelHalf);
+		cmbHalf.setToolTipText("Select whether the game is in first half, second half, overtime or penalty shoot. Changing this option will switch the teams around automatically.");
 		cmbHalf.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent evt) {
 				cmbHalfActionPerformed(evt);
@@ -768,58 +736,47 @@ public class MainGUI extends javax.swing.JFrame {
 				cmdTimeOutDone_Selected(evt);
 			}
 		});
-
+		
 		constraints = new GridBagConstraints();
 		constraints.gridx = 1;
 		constraints.gridy = 0;
+		constraints.fill = GridBagConstraints.HORIZONTAL;		
 		constraints.weightx = 1.0;
 		constraints.weighty = 1.0;
 		constraints.insets = new Insets(2, 2, 2, 2);
-		pnlSpecialEventTime.add(cmdTimeOutDone, constraints);
+		pnlSpecialEventTime.add(cmdTimeOutDone, constraints);		
 
-		cmdTeam1TimeOut = new JButton();
-		cmdTeam1TimeOut.setBackground(rulebook.getTeamColor(0));
-		cmdTeam1TimeOut.setText("<html><center>" + rulebook.getTeamName(0) + "<br/>Time Out</center></html>");
-		cmdTeam1TimeOut.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent evt) {
-				cmdTeam1TimeOut_Selected(evt);
-			}
-		});
+		cmdTeamTimeOut = new JButton[Constants.NUM_TEAMS];
+		
+		for(byte j = 0; j < Constants.NUM_TEAMS; j++) {
+			cmdTeamTimeOut[j] = new JButton();
+			initColorButton(cmdTeamTimeOut[j], rulebook.getTeamColor(j));
+			cmdTeamTimeOut[j].setText("<html><center>" + rulebook.getTeamColorName(j) + "<br/>Time Out</center></html>");
+			
+			final byte team = j;
 
-		constraints = new GridBagConstraints();
-		constraints.gridx = 1;
-		constraints.gridy = 1;
-		constraints.fill = GridBagConstraints.HORIZONTAL;
-		constraints.weightx = 1.0;
-		constraints.weighty = 1.0;
-		constraints.insets = new Insets(2, 2, 2, 2);
-		pnlSpecialEventTime.add(cmdTeam1TimeOut, constraints);
-
-		cmdTeam2TimeOut = new JButton();
-
-		cmdTeam2TimeOut.setBackground(rulebook.getTeamColor(1));
-		cmdTeam2TimeOut.setText("<html><center>" + rulebook.getTeamName(1) + "<br/>Time Out</center></html>");
-		cmdTeam2TimeOut.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent evt) {
-				cmdTeam2TimeOut_Selected(evt);
-			}
-		});
-
-		constraints = new GridBagConstraints();
-		constraints.gridx = 1;
-		constraints.gridy = 2;
-		constraints.fill = GridBagConstraints.HORIZONTAL;
-		constraints.weightx = 1.0;
-		constraints.weighty = 1.0;
-		constraints.insets = new Insets(2, 2, 2, 2);
-		pnlSpecialEventTime.add(cmdTeam2TimeOut, constraints);
+			cmdTeamTimeOut[j].addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent evt) {
+					cmdTeamTimeOut_Selected(evt, team);
+				}
+			});					
+			
+			constraints = new GridBagConstraints();
+			constraints.gridx = 1;
+			constraints.gridy = j+1;
+			constraints.fill = GridBagConstraints.HORIZONTAL;
+			constraints.weightx = 1.0;
+			constraints.weighty = 1.0;
+			constraints.insets = new Insets(2, 2, 2, 2);
+			pnlSpecialEventTime.add(cmdTeamTimeOut[j], constraints);				
+		}
 
 		pnlSpecialEventTime.getAccessibleContext().setAccessibleName("Event Time : None");
 
 		return pnlSpecialEventTime;
 	}
 
-	private void cmdTeam1TimeOut_Selected(ActionEvent evt) {
+	private void cmdTeamTimeOut_Selected(ActionEvent evt, byte team) {
 		if ((special_event != SPECIAL_EVENT_NONE) && (eventSecs >= rulebook.getTimeOutSeconds())) {
 			System.err.println("Ignoring timeout - too much time left on other event");
 
@@ -830,27 +787,14 @@ public class MainGUI extends javax.swing.JFrame {
 			return;
 		}
 		eventSecs = rulebook.getTimeOutSeconds();
-		special_event = SPECIAL_EVENT_TEAM1_TIMEOUT;
+
+		special_event = team == TEAM_1 ? SPECIAL_EVENT_TEAM1_TIMEOUT : SPECIAL_EVENT_TEAM2_TIMEOUT;
+		cmdTeamKickOff[team == TEAM_1 ? TEAM_2 : TEAM_1].setSelected(true);
+		data.setKickOffTeam(team == TEAM_1 ? TEAM_2 : TEAM_1);
+		
 		startClock = false;
 		data.setGameState(Constants.STATE_INITIAL);
-		setEventTitle(rulebook.getTeamName(0) + " Time Out");
-	}
-
-	private void cmdTeam2TimeOut_Selected(ActionEvent evt) {
-		if ((special_event != SPECIAL_EVENT_NONE) && (eventSecs >= rulebook.getTimeOutSeconds())) {
-			System.err.println("Ignoring timeout - too much time left on other event");
-
-			if (!quiet) {
-				Toolkit.getDefaultToolkit().beep();
-			}
-
-			return;
-		}
-		eventSecs = rulebook.getTimeOutSeconds();
-		special_event = SPECIAL_EVENT_TEAM2_TIMEOUT;
-		startClock = false;
-		data.setGameState(Constants.STATE_INITIAL);
-		setEventTitle(rulebook.getTeamName(1) + " Time Out");
+		setEventTitle(rulebook.getTeamColorName(team) + " Time Out");
 	}
 
 	private void cmdTimeOutDone_Selected(ActionEvent evt) {
@@ -898,113 +842,144 @@ public class MainGUI extends javax.swing.JFrame {
 	}
 
 	private void cmbHalfActionPerformed(ActionEvent evt) {
-		String half = (String) cmbHalf.getSelectedItem();
+		Short playMode = comboBoxModelHalf.getSelectedIndex();
+		
+		boolean isFirst = playMode == Constants.PLAY_MODE_FIRST_HALF || playMode == Constants.PLAY_MODE_FIRST_OVERTIME;
+		boolean isHalf = playMode == Constants.PLAY_MODE_FIRST_HALF || playMode == Constants.PLAY_MODE_SECOND_HALF;
+		boolean isOvertime = playMode == Constants.PLAY_MODE_FIRST_OVERTIME || playMode == Constants.PLAY_MODE_SECOND_OVERTIME;
+		boolean isPenaltyShoot = playMode == Constants.PLAY_MODE_FIRST_TEAM_PENALTY || playMode == Constants.PLAY_MODE_SECOND_TEAM_PENALTY;
 
-		boolean penaltyShoot = half.contains("Penalty");
-
-		if (penaltyShoot) {
+		for(byte i = 0; i < Constants.NUM_TEAMS ; i++) {
+			cmdTeamScoreDown[i].setEnabled(true);
+			cmdTeamScoreUp[i].setEnabled(true);
+		}
+		
+		if (isPenaltyShoot) {
 			data.setSecondaryGameState(Constants.STATE2_PENALTYSHOOT);
-			// boolean shotA = half.endsWith("A");
-			// boolean shotA = half.endsWith(teamNames[TEAM_0]);
-			boolean shotA = cmbHalf.getSelectedIndex() == 2; // not a very elegant piece of code
+			data.setGameState(Constants.STATE_INITIAL);
+			cmdInitial.setSelected(true);
+
+			boolean shotA = playMode == Constants.PLAY_MODE_FIRST_TEAM_PENALTY;
 			boolean blueKickoff = (halfKickoffTeam == Constants.TEAM_BLUE);
 			boolean currentShotA = (data.getHalf() == blueKickoff);
 
-			if (shotA != currentShotA) {
+			if (shotA == currentShotA) {
+				logger.info("Penalty Shoot: " + teamNames[shotA ? TEAM_1 : TEAM_2] + " (" + rulebook.getTeamColorName(shotA ? TEAM_1 : TEAM_2) + ")");
+			
 				switchTeams();
 				data.setHalf(!data.getHalf());
 			}
-			data.setKickOffTeam(Constants.TEAM_RED);
-			cmdTeam2KickOff.setSelected(true);
-			cmdTimeReset_clicked(null);
+			
+			byte kickoffTeam = rulebook.getSwitchTeamColorBetweenHalfs() ? Constants.TEAM_RED : shotA ? TEAM_1 : TEAM_2;
+			byte otherTeam = (kickoffTeam == TEAM_2 ? TEAM_1 : TEAM_2);
+				
+			data.setKickOffTeam(kickoffTeam);
+			cmdTeamKickOff[kickoffTeam].setSelected(true);
+			
+			cmdTeamScoreDown[otherTeam].setEnabled(false);
+			cmdTeamScoreUp[otherTeam].setEnabled(false);
+			cmdTeamScoreDown[kickoffTeam].setEnabled(true);
+			cmdTeamScoreUp[kickoffTeam].setEnabled(true);	
+			
+			setGameState(Constants.STATE_INITIAL);
+			
 		} else {
-			boolean firstHalf = half.equals("First Half");
-			if ((firstHalf != data.getHalf()) || (data.getSecondaryGameState() != Constants.STATE2_NORMAL)) {
+			if (isHalf) {
 				data.setSecondaryGameState(Constants.STATE2_NORMAL);
+			} else if (isOvertime) {
+				data.setSecondaryGameState(Constants.STATE2_OVERTIME);
+			}
 
-				if (firstHalf != data.getHalf()) {
-					data.setHalf(firstHalf);
-					switchTeams();
+			if (isFirst != data.getHalf()) {
+				data.setHalf(isFirst);
+				switchTeams();
+				if (!rulebook.getSwitchTeamColorBetweenHalfs()) {
+					cmdTeamKickOff[TEAM_1 == halfKickoffTeam ? TEAM_2 : TEAM_1].setSelected(true);
+					data.setKickOffTeam(TEAM_1 == halfKickoffTeam ? TEAM_2 : TEAM_1);
 				}
-
-				if (halfKickoffTeam != -1) {
+				else{
+					cmdTeamKickOff[halfKickoffTeam].setSelected(true);
 					data.setKickOffTeam(halfKickoffTeam);
-					if (halfKickoffTeam == TEAM_0) {
-						cmdTeam1KickOff.setSelected(true);
-					} else {
-						cmdTeam2KickOff.setSelected(true);
-					}
 				}
-
-				cmdTimeReset_clicked(null);
 			}
 		}
+		cmdTimeReset_clicked(null);
 	}
 
 	// need to change the team numbers, colours, and scores around when the
 	// halves are changed
 	private void switchTeams() {
-		ImageIcon tempLogo = (ImageIcon) lblTeam1Logo.getIcon();
-		lblTeam1Logo.setIcon(lblTeam2Logo.getIcon());
-		lblTeam2Logo.setIcon(tempLogo);
+		if (rulebook.getSwitchTeamColorBetweenHalfs()) {
+			switchLogosNumbersScoresNames();
 
-		byte tempTeam = data.getTeamNumber(TEAM_0);
-		byte tempScore = data.getScore(TEAM_0);
-		String tempName = teamNames[TEAM_0];
-		Color tempColor = lblTeam1.getForeground();
-		byte tempTeamColour = data.getTeamColour(TEAM_0);
+		} else {
+			// swap team goal color
+			byte tempGoalColor = data.getGoalColour(TEAM_1);
+			data.setGoalColour(TEAM_1, data.getGoalColour(TEAM_2));
+			data.setGoalColour(TEAM_2, tempGoalColor);
 
-		// data.setTeamColour(TEAM_0, data.getTeamColour(TEAM_1));
-		// data.setTeamColour(TEAM_1, tempTeamColour);
-
-		// swap the teams in variables
-		data.setTeamNumber(TEAM_0, data.getTeamNumber(TEAM_1));
-		data.setTeamNumber(TEAM_1, tempTeam);
-		data.setScore(TEAM_0, data.getScore(TEAM_1));
-		data.setScore(TEAM_1, tempScore);
-
-		teamNames[TEAM_0] = teamNames[TEAM_1];
-		teamNames[TEAM_1] = tempName;
-
-		// change the team numbers in the panel borders
-		pnlTeam1.setBorder(new TitledBorder(null, teamNames[TEAM_0] + " - #" + data.getTeamNumber(TEAM_0), TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
-		pnlTeam2.setBorder(new TitledBorder(null, teamNames[TEAM_1] + " - #" + data.getTeamNumber(TEAM_1), TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
-
-		// change the scores
-		lblTeam1Score.setText("" + data.getScore(TEAM_0));
-		lblTeam2Score.setText("" + data.getScore(TEAM_1));
+			goalColourTeam[TEAM_1].setSelectedIndex(data.getGoalColour(TEAM_1));
+			goalColourTeam[TEAM_2].setSelectedIndex(data.getGoalColour(TEAM_2));
+		}
 
 		// System.out.println("Team0: " + data.getScore(TEAM_0) + " Team1: " + data.getScore(TEAM_1));
-
-		lblTeam1.setForeground(rulebook.getTeamColor(TEAM_0));
-		lblTeam2.setForeground(rulebook.getTeamColor(TEAM_1));
-		lblTeam1.setText(teamNames[TEAM_0]);
-		lblTeam2.setText(teamNames[TEAM_1]);
-
-		for (int i = 0; i < numPlayers; i++) {
-			cmdTeam1[i].resetPlayerSeen();
-			cmdTeam2[i].resetPlayerSeen();
-		}
 
 		if (rulebook.getUsePushingCounter()) {
 			rulebook.resetPushingCounter();
 
-			lblTeam1PushCount.setText("" + rulebook.getPushingCounter(TEAM_0) + "");
-			lblTeam2PushCount.setText("" + rulebook.getPushingCounter(TEAM_1) + "");
+			lblTeamPushCount[TEAM_1].setText("" + rulebook.getPushingCounter(TEAM_1) + "");
+			lblTeamPushCount[TEAM_2].setText("" + rulebook.getPushingCounter(TEAM_2) + "");
 
-			numPushing[TEAM_0] = 0;
-			numPushing[TEAM_1] = 0;
+			numEjected[TEAM_1] = 0;
+			numEjected[TEAM_2] = 0;
 		}
 
 		// reset the drop in time and team
 		data.resetDropIn();
 
 		// Unpenalize all robots, even the ejected ones
-		unpenaliseAll(true);
+		unpenaliseAll(true, false);
 
 		// System.out.println("Team0: number: " + data.getTeamNumber(TEAM_0) + " score: " + data.getScore(TEAM_0) + " Team1: number: " + data.getTeamNumber(TEAM_1) + " score: " + data.getScore(TEAM_1));
 
 		// pack();
+	}
+
+	private void switchLogosNumbersScoresNames() {
+		// swap team logos
+		ImageIcon tempLogo = (ImageIcon) lblTeamLogo[TEAM_1].getIcon();
+		lblTeamLogo[TEAM_1].setIcon(lblTeamLogo[TEAM_2].getIcon());
+		lblTeamLogo[TEAM_2].setIcon(tempLogo);
+
+		// swap team numbers
+		byte tempTeam = data.getTeamNumber(TEAM_1);
+		data.setTeamNumber(TEAM_1, data.getTeamNumber(TEAM_2));
+		data.setTeamNumber(TEAM_2, tempTeam);
+
+		// swap team scores
+		byte tempScore = data.getScore(TEAM_1);
+		data.setScore(TEAM_1, data.getScore(TEAM_2));
+		data.setScore(TEAM_2, tempScore);
+
+		// swap team names
+		String tempName = teamNames[TEAM_1];
+		teamNames[TEAM_1] = teamNames[TEAM_2];
+		teamNames[TEAM_2] = tempName;
+
+		logger.info("Switch Team Colors: " + teamNames[TEAM_1] + " (" + rulebook.getTeamColorName(TEAM_1) + "), " + teamNames[TEAM_2] + " (" + rulebook.getTeamColorName(TEAM_2) + ")");
+
+		// change the team numbers in the panel borders
+		pnlTeam[TEAM_1].setBorder(new TitledBorder(null, teamNames[TEAM_1] + " - #" + data.getTeamNumber(TEAM_1), TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
+		pnlTeam[TEAM_2].setBorder(new TitledBorder(null, teamNames[TEAM_2] + " - #" + data.getTeamNumber(TEAM_2), TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
+
+		// change the scores
+		lblTeamScore[TEAM_1].setText("" + data.getScore(TEAM_1));
+		lblTeamScore[TEAM_2].setText("" + data.getScore(TEAM_2));
+
+		lblTeam[TEAM_1].setForeground(rulebook.getTeamColor(TEAM_1));
+		lblTeam[TEAM_2].setForeground(rulebook.getTeamColor(TEAM_2));
+		lblTeam[TEAM_1].setText(teamNames[TEAM_1]);
+		lblTeam[TEAM_2].setText(teamNames[TEAM_2]);
 	}
 
 	/***************************************************************************
@@ -1015,36 +990,38 @@ public class MainGUI extends javax.swing.JFrame {
 
 	// unpenalise the specified player
 	public void unpenalisePlayer(byte team, byte player) {
-		logger.fine("Clicked on unpenalise (Team: " + team + ", Player: " + player);
+		logger.fine("Clicked on unpenalise (Team: " + team + ", Player: " + (player + 1));
 
-		PlayerButton button = (team == TEAM_0) ? cmdTeam1[player] : cmdTeam2[player];
+		PlayerButton button = cmdTeam[team][player];
 		button.setPenalty(Constants.PENALTY_NONE, 0);
 
 		data.setPenalty(team, player, Constants.PENALTY_NONE);
-
-		if (team == TEAM_0) {
-			team1Countdown[player] = 0;
-		} else {
-			team2Countdown[player] = 0;
-		}
+		teamPenaltyCountdown[team][player] = 0;
 	}
 
 	// wrapper for GUIUnpenalised to unpenalise all GUI elements
-	private void unpenaliseAll(boolean includeEjected) {
-		for (byte team = 0; team < Constants.NUM_TEAMS; team++) {
-			for (byte player = 0; player < numPlayers; player++) {
-				if (includeEjected || team == TEAM_0 && team1Countdown[player] != -1 || team == TEAM_1 && team2Countdown[player] != -1) {
-					unpenalisePlayer(team, player);
-					data.resetPenalty(team, player);
+	private void unpenaliseAll(boolean includeEjected, boolean penaltyTimeStayOnStateChange) {
+		if(!rulebook.getPenaltyTimeStayOnStateChange() || penaltyTimeStayOnStateChange) {
+			for (byte team = 0; team < Constants.NUM_TEAMS; team++) {
+				for (byte player = 0; player < numPlayers; player++) {
+					if (includeEjected || teamPenaltyCountdown[team][player] != -1) {
+						if(!rulebook.getPenaltyStayOnStateChange(teamPenaltyReason[team][player])) {
+							unpenalisePlayer(team, player);
+							data.resetPenalty(team, player);
+						}
+						else teamPenaltyCountdown[team][player] = 0;
+					}
 				}
-			}
 		}
-		// data.resetPenalties();
+			// data.resetPenalties();
+		}	
 	}
 
 	// reset the clock
 	private void cmdTimeReset_clicked(MouseEvent evt) {
-		if (data.getSecondaryGameState() == Constants.STATE2_PENALTYSHOOT) {
+		if (data.getSecondaryGameState() == Constants.STATE2_OVERTIME) {
+			secs = rulebook.getOvertimeSeconds();
+		} else if (data.getSecondaryGameState() == Constants.STATE2_PENALTYSHOOT) {
 			secs = rulebook.getPenaltyShootSeconds();
 		} else {
 			secs = rulebook.getTimeSeconds();
@@ -1073,72 +1050,55 @@ public class MainGUI extends javax.swing.JFrame {
 	// 4) change kick off teams in GUI
 	// 5) change kick off teams in data structure
 	// 6) change state to "ready" if necessary (in GUI and data structure)
-	private void cmdTeam1ScoreDown_clicked(ActionEvent evt) {
-		byte team1Score = data.getScore(TEAM_0);
-		if (team1Score > 0) {
-			team1Score--;
+	private void cmdTeamScoreDown_clicked(ActionEvent evt, byte team) {
+		byte teamScore = data.getScore(team);
+		if (teamScore > 0) {
+			teamScore--;
 		}
-		data.setScore(TEAM_0, team1Score);
-		lblTeam1Score.setText("" + team1Score);
+		
+		logger.info(teamNames[TEAM_1] + " (" + rulebook.getTeamColorName(team) + ") " + " loses a goal [" + teamNames[TEAM_1] + " (" + rulebook.getTeamColorName(TEAM_1) + ") " + data.getScore(TEAM_1) + " : " + data.getScore(TEAM_2) + " " + teamNames[TEAM_2] + "(" + rulebook.getTeamColorName(TEAM_2) + ")]" );
+		
+		data.setScore(team, teamScore);
+		lblTeamScore[team].setText("" + teamScore);
 	}
 
-	private void cmdTeam1ScoreUp_clicked(MouseEvent evt) {
-		byte team1Score = data.getScore(TEAM_0);
-		team1Score++;
-		data.setScore(TEAM_0, team1Score);
-		lblTeam1Score.setText("" + team1Score);
+	private void cmdTeamScoreUp_clicked(ActionEvent evt, byte team) {
+		byte teamScore = data.getScore(team);
+		teamScore++;
+		data.setScore(team, teamScore);
+		lblTeamScore[team].setText("" + teamScore);
 
-		String half = (String) cmbHalf.getSelectedItem();
+		Short playMode = comboBoxModelHalf.getSelectedIndex();
+		
+		logger.info(teamNames[TEAM_1] + " (" + rulebook.getTeamColorName(team) + ") " + " scrore [" + teamNames[TEAM_1] + "(" + rulebook.getTeamColorName(TEAM_1) + ") " + data.getScore(TEAM_1) + " : " + data.getScore(TEAM_2) + " "+ teamNames[TEAM_1] + "(" + rulebook.getTeamColorName(TEAM_2) + ")]" );
+		
 
-		if (half == "First Half") {
-			cmdTeam2KickOff.setSelected(true);
-		} else {
-			cmdTeam1KickOff.setSelected(true);
+		cmdTeamKickOff[team == TEAM_1 ? TEAM_2 : TEAM_1].setSelected(true);
+		data.setKickOffTeam(team == TEAM_1 ? TEAM_2 : TEAM_1);
+
+		unpenaliseAll(false, false);
+		if(playMode == Constants.PLAY_MODE_FIRST_TEAM_PENALTY || playMode == Constants.PLAY_MODE_SECOND_TEAM_PENALTY ) {
+			this.setGameState(Constants.STATE_FINISHED);
+			data.setGameState(Constants.STATE_FINISHED);
+			cmdFinish.setSelected(true);
+
+			setEventTitle("Ready");
+			eventSecs = rulebook.getReadySeconds();
+			special_event = SPECIAL_EVENT_READY;			
+		}else{
+			data.setGameState(Constants.STATE_READY);
+			cmdReady.setSelected(true);
+
+			setEventTitle("Ready");
+			eventSecs = rulebook.getReadySeconds();
+			special_event = SPECIAL_EVENT_READY;			
 		}
-
-		data.setKickOffTeam(TEAM_1);
-
-		unpenaliseAll(false);
-		data.setGameState(Constants.STATE_READY);
-		cmdReady.setSelected(true);
-
-		setEventTitle("Ready");
-		eventSecs = rulebook.getReadySeconds();
-		special_event = SPECIAL_EVENT_READY;
 	}
 
-	private void cmdTeam2ScoreDown_clicked(MouseEvent evt) {
-		byte team2Score = data.getScore(TEAM_1);
-		if (team2Score > 0) {
-			team2Score--;
-		}
-		data.setScore(TEAM_1, team2Score);
-		lblTeam2Score.setText("" + team2Score);
-	}
+	
 
-	private void cmdTeam2ScoreUp_clicked(MouseEvent evt) {
-		byte team2Score = data.getScore(TEAM_1);
-		team2Score++;
-		data.setScore(TEAM_1, team2Score);
-		lblTeam2Score.setText("" + team2Score);
-
-		String half = (String) cmbHalf.getSelectedItem();
-
-		if (half == "First Half") {
-			cmdTeam1KickOff.setSelected(true);
-		} else {
-			cmdTeam2KickOff.setSelected(true);
-		}
-
-		data.setKickOffTeam(TEAM_0);
-
-		unpenaliseAll(false);
-		data.setGameState(Constants.STATE_READY);
-		cmdReady.setSelected(true);
-
-		setEventTitle("Ready");
-		eventSecs = rulebook.getReadySeconds();
-		special_event = SPECIAL_EVENT_READY;
+	private void cmdSwitchTeams_clicked(MouseEvent evt) {
+		switchLogosNumbersScoresNames();
 	}
 
 	/***************************************************************************
@@ -1148,7 +1108,7 @@ public class MainGUI extends javax.swing.JFrame {
 	 **************************************************************************/
 
 	protected short selectedPenalty = Constants.PENALTY_NONE;
-	protected int selectedPlayerTeam = TEAM_0;
+	protected int selectedPlayerTeam = TEAM_1;
 	protected int selectedPlayerNumber = -1;
 
 	// this function is called by the player/penalty button clicks
@@ -1156,42 +1116,41 @@ public class MainGUI extends javax.swing.JFrame {
 	private void applyPenalty(short team, short player, short code) {
 		short time = rulebook.getPenaltyTime(code);
 
-		if (team == TEAM_0) {
-			logger.info("Applying " + rulebook.getPenaltyName(code) + " to" + rulebook.getTeamName(0) + " " + player);
-			data.setPenalty(TEAM_0, (byte) player, code);
-			team1Countdown[player] = time;
+		logger.info("Applying " + rulebook.getPenaltyName(code) + " to " + teamNames[team] + "(" + rulebook.getTeamColorName(team) + ") " + (player + 1));
+		data.setPenalty((byte) team, (byte) player, code);
+		teamPenaltyCountdown[team][player] = time;
+		teamPenaltyReason[team][player] = code;
 
-			if (rulebook.getUsePushingCounter() && code == Constants.PENALTY_SPL_PLAYER_PUSHING && rulebook.getPushingCounter(TEAM_0) == rulebook.getPushingThreshold(numPushing[TEAM_0])) {
-				team1Countdown[player] = -1;
-				numPushing[TEAM_0]++;
+		if (rulebook.getUsePushingCounter() && code == Constants.PENALTY_SPL_PLAYER_PUSHING && rulebook.getPushingCounter((byte) team) == rulebook.getPushingThreshold(numEjected[team]) -1) {
+			teamPenaltyCountdown[team][player] = -1;
+			logger.info("Applying " + "Ejected to " + teamNames[team] + "(" + rulebook.getTeamColorName(team) + ") " + (player + 1));
+			numEjected[team]++;
 
-				if (numPushing[TEAM_0] >= numPlayers - 1) {
-					numPushing[TEAM_0]--;
-				}
+			if (numEjected[team] >= numPlayers - 1) {
+				numEjected[team]--;
 			}
-		} else {
-			logger.info("Applying " + rulebook.getPenaltyName(code) + " to" + rulebook.getTeamName(1) + " " + player);
-			data.setPenalty(TEAM_1, (byte) player, code);
-			team2Countdown[player] = time;
-
-			if (rulebook.getUsePushingCounter() && code == Constants.PENALTY_SPL_PLAYER_PUSHING && rulebook.getPushingCounter(TEAM_1) == rulebook.getPushingThreshold(numPushing[TEAM_1])) {
-				team2Countdown[player] = -1;
-				numPushing[TEAM_1]++;
-
-				if (numPushing[TEAM_1] >= numPlayers - 1) {
-					numPushing[TEAM_1]--;
-				}
-			}
-		}
+		}		
 
 		if (rulebook.getUsePushingCounter() && code == Constants.PENALTY_SPL_PLAYER_PUSHING) {
 			rulebook.incrementPushingCounter((byte) team);
 
-			lblTeam1PushCount.setText("" + rulebook.getPushingCounter(TEAM_0) + "");
-			lblTeam2PushCount.setText("" + rulebook.getPushingCounter(TEAM_1) + "");
+			lblTeamPushCount[TEAM_1].setText("" + rulebook.getPushingCounter(TEAM_1) + "");
+			lblTeamPushCount[TEAM_2].setText("" + rulebook.getPushingCounter(TEAM_2) + "");
 		}
 
 		// System.out.println("usePushingCounter: " + rulebook.getUsePushingCounter() + " code: " + code + " team1 push: " + rulebook.getPushingCounter(TEAM_0) + " team2 push: " + rulebook.getPushingCounter(TEAM_1));
+
+		unselectPenalty(); // clear all selections after a penalty is given
+		updatePenaltyButtons();
+	}
+
+	private void applyAddonPenalty(short team, short player, short code) {
+		short time = rulebook.getPenaltyTime(code);
+
+
+		logger.info("Applying " + rulebook.getPenaltyName(code) + " to " + rulebook.getTeamColorName(team) + " " + (player + 1));
+		data.setPenalty((byte) team, (byte) player, code);
+		teamPenaltyCountdown[team][player] += time;
 
 		unselectPenalty(); // clear all selections after a penalty is given
 		updatePenaltyButtons();
@@ -1202,17 +1161,17 @@ public class MainGUI extends javax.swing.JFrame {
 		selectedPenalty = Constants.PENALTY_NONE;
 		cmdInvisible.setSelected(true); // don't select any penalty
 		for (int i = 0; i < numPlayers; i++) {
-			cmdTeam1[i].setSelected(false);
-			cmdTeam2[i].setSelected(false);
+			cmdTeam[TEAM_1][i].setSelected(false);
+			cmdTeam[TEAM_2][i].setSelected(false);
 		}
 	}
 
 	// Player/Penalty button clicks
 
 	public void cmdPlayerClicked(int team, int player) {
-		logger.fine("Clicked on " + rulebook.getTeamName(team) + " " + player);
+		logger.fine("Clicked on " + rulebook.getTeamColorName(team) + " " + (player + 1));
 
-		PlayerButton button = team == TEAM_0 ? cmdTeam1[player] : cmdTeam2[player];
+		PlayerButton button = cmdTeam[team][player];
 
 		if (button.mode == Mode.modeNORMAL) {
 			if (selectedPenalty != Constants.PENALTY_NONE) {
@@ -1221,20 +1180,24 @@ public class MainGUI extends javax.swing.JFrame {
 			} else {
 				if (selectedPlayerTeam != team || selectedPlayerNumber != player) {
 					if (selectedPlayerNumber != -1) {
-						PlayerButton prevButton = selectedPlayerTeam == TEAM_0 ? cmdTeam1[selectedPlayerNumber] : cmdTeam2[selectedPlayerNumber];
+						PlayerButton prevButton = cmdTeam[selectedPlayerTeam][selectedPlayerNumber];
 						prevButton.setSelected(false);
 					}
 					selectedPlayerTeam = team;
 					selectedPlayerNumber = player;
 				} else {
 					button.setSelected(false);
-					selectedPlayerTeam = TEAM_0;
+					selectedPlayerTeam = TEAM_1;
 					selectedPlayerNumber = -1;
 				}
 			}
 		} else {
-			unpenalisePlayer((byte) team, (byte) player);
-			button.setSelected(false);
+			if (selectedPenalty != Constants.PENALTY_NONE && rulebook.getPenaltyIsAddon(selectedPenalty)) {
+				applyAddonPenalty((short) team, (short) player, selectedPenalty);
+			} else {
+				unpenalisePlayer((byte) team, (byte) player);
+				button.setSelected(false);
+			}
 		}
 	}
 
@@ -1242,22 +1205,17 @@ public class MainGUI extends javax.swing.JFrame {
 		logger.fine("Clicked on a penalty");
 
 		short selectedPlayer = 0;
-		short selectedTeam = TEAM_0;
+		short selectedTeam = TEAM_1;
 		boolean playerSelected = false;
-		for (byte i = 0; i < numPlayers; i++) {
-			if (cmdTeam1[i].isSelected()) {
-				selectedPlayer = i;
-				selectedTeam = TEAM_0;
-				playerSelected = true;
-				break;
+		for (byte j = 0; j < Constants.NUM_TEAMS; j++)
+			for (byte i = 0; i < numPlayers; i++) {
+				if (cmdTeam[j][i].isSelected()) {
+					selectedPlayer = i;
+					selectedTeam = j;
+					playerSelected = true;
+					break;
+				}
 			}
-			if (cmdTeam2[i].isSelected()) {
-				selectedPlayer = i;
-				selectedTeam = TEAM_1;
-				playerSelected = true;
-				break;
-			}
-		}
 
 		if (playerSelected) {
 			applyPenalty(selectedTeam, selectedPlayer, code);
@@ -1272,14 +1230,19 @@ public class MainGUI extends javax.swing.JFrame {
 	}
 
 	public void cmdChangeGoalColours(ActionEvent evt) {
-		JComboBox source = (evt.getSource() == goalColourTeam1) ? goalColourTeam1 : goalColourTeam2;
-		JComboBox other = (evt.getSource() == goalColourTeam1) ? goalColourTeam2 : goalColourTeam1;
+		JComboBox source = (JComboBox) evt.getSource();
+		JComboBox other = (evt.getSource() == goalColourTeam[TEAM_1]) ? goalColourTeam[TEAM_2] : goalColourTeam[TEAM_1];
 
-		int srcGoal = source.getSelectedIndex();
-		other.setSelectedIndex((srcGoal == 0) ? 1 : 0);
+		if(other.getSelectedIndex() == source.getSelectedIndex()) {
+			Short playMode = comboBoxModelHalf.getSelectedIndex();
+			if(playMode != Constants.PLAY_MODE_FIRST_TEAM_PENALTY && playMode != Constants.PLAY_MODE_SECOND_TEAM_PENALTY)
+					logger.info("Switch Goal Colors: " + teamNames[TEAM_1] + " (" + rulebook.getGoalColorName(goalColourTeam[TEAM_1].getSelectedIndex() == 0 ? Constants.GOAL_BLUE : Constants.GOAL_YELLOW) + "), " + teamNames[TEAM_2] + " (" + rulebook.getGoalColorName(goalColourTeam[TEAM_2].getSelectedIndex() == 0 ? Constants.GOAL_YELLOW : Constants.GOAL_BLUE) + ")");
+		}
+		other.setSelectedIndex((source.getSelectedIndex() == 0) ? 1 : 0);
+		
 
-		data.setGoalColour(TEAM_0, (goalColourTeam1.getSelectedIndex() == 0) ? Constants.GOAL_BLUE : Constants.GOAL_YELLOW);
-		data.setGoalColour(TEAM_1, (goalColourTeam2.getSelectedIndex() == 0) ? Constants.GOAL_BLUE : Constants.GOAL_YELLOW);
+		data.setGoalColour(TEAM_1, (goalColourTeam[TEAM_1].getSelectedIndex() == 0) ? Constants.GOAL_BLUE : Constants.GOAL_YELLOW);
+		data.setGoalColour(TEAM_2, (goalColourTeam[TEAM_2].getSelectedIndex() == 0) ? Constants.GOAL_BLUE : Constants.GOAL_YELLOW);
 	}
 
 	public void setEventTitle() {
@@ -1298,11 +1261,17 @@ public class MainGUI extends javax.swing.JFrame {
 	// a specified state, some of these states also reset all penalties
 
 	public void setGameState(byte state) {
-		data.setGameState(state);
-
-		unpenaliseAll(state == Constants.STATE_FINISHED);
-
+		Byte oldGameState = data.getGameState();
+		
+		unpenaliseAll(state == Constants.STATE_FINISHED, false);
+		
 		if (state == Constants.STATE_PLAYING) {
+			// burst SET when switching from READY to PLAYING (keep correct state sequence)
+			if(oldGameState == Constants.STATE_READY) {  
+				data.setGameState(Constants.STATE_SET);
+				broadcast.setBurst(true);
+			}
+			data.setGameState(state);
 			startClock = true;
 			broadcast.setBurst(true);
 			if (halfKickoffTeam == -1) {
@@ -1312,24 +1281,42 @@ public class MainGUI extends javax.swing.JFrame {
 			eventSecs = rulebook.getReadySeconds();
 			special_event = SPECIAL_EVENT_READY;
 			setEventTitle("Ready");
+			
+			if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_SECOND_HALF)
+				logger.info("Start second half");
+			else if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_FIRST_OVERTIME)
+				logger.info("Start first overtime");
+			else if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_SECOND_OVERTIME)
+				logger.info("Start second overtime");			
 		} else if (state == Constants.STATE_FINISHED) {
 			startClock = false;
-
-			if ("First Half".equals((String) cmbHalf.getSelectedItem())) {
+			
+			if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_FIRST_HALF) {
 				setEventTitle("Half-time");
+				logger.info("End first half");
 				eventSecs = rulebook.getHalfTimeSeconds();
 				special_event = SPECIAL_EVENT_HALFTIME;
 			}
+			else if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_FIRST_OVERTIME)
+				logger.info("End first overtime");
+			else if (comboBoxModelHalf.getSelectedIndex() == Constants.PLAY_MODE_SECOND_OVERTIME)
+				logger.info("End second overtime");				
 		}
+		
+		data.setGameState(state);
 	}
 
 	public void setKickOff(byte team) {
-		logger.fine("Clicked on " + rulebook.getTeamName(team) + " Kick Off");
+		if (team == Constants.DROPBALL) {
+			logger.fine("Clicked on Drop Ball");
+		} else {
+			logger.fine("Clicked on " + rulebook.getTeamColorName(team) + " Kick Off");
+		}
 		data.setKickOffTeam(team);
 	}
 
 	public void setDropIn(byte team) {
-		logger.fine("Clicked on " + rulebook.getTeamName(team) + " Drop In");
+		logger.fine("Clicked on " + rulebook.getTeamColorName(team) + " Drop In");
 		data.setDropInTeam(team);
 	}
 
@@ -1355,16 +1342,23 @@ public class MainGUI extends javax.swing.JFrame {
 
 	// flags set by clock buttons to start/stop it
 	private boolean startClock = false;
+	
+	// these arrays hold the penalty countdown values for each player
+	private double[][] teamPenaltyCountdown = new double[Constants.NUM_TEAMS][Constants.MAX_NUM_PLAYERS];
+	private short[][] teamPenaltyReason = new short[Constants.NUM_TEAMS][Constants.MAX_NUM_PLAYERS];
+		
 
 	// call other methods that need the time
 	private ActionListener clock = new ActionListener() {
 		public void actionPerformed(ActionEvent evt) {
-			updateClock(); // update GUI clock
+			int oldSecs = (int) Math.ceil(secs);
+		    updateClock(); // update GUI clock
 			updateEventClock();
-			updatePlayerButtons();
 			updatePenaltyCountDown(); // update penalty button countdowns
 			updateEstimatedSecs(); // update secs remaining in struct
-			data.updateDropInTime(); // update drop in team/time
+			if((int) Math.ceil(secs) != oldSecs) {
+				data.updateDropInTime(); // update drop in team/time
+			}
 		}
 	};
 
@@ -1378,47 +1372,29 @@ public class MainGUI extends javax.swing.JFrame {
 		}
 	}
 
-	// these arrays hold the penalty countdown values for each player
-	private double[] team1Countdown = new double[Constants.MAX_NUM_PLAYERS];
-	private double[] team2Countdown = new double[Constants.MAX_NUM_PLAYERS];
-
-	private void updatePlayerButtons() {
-		double diff = timerInterval / oneSecond;
-		for (int i = 0; i < numPlayers; i++) {
-			cmdTeam1[i].updateLastSeen(diff);
-			cmdTeam2[i].updateLastSeen(diff);
-		}
-	}
-
 	// update any penalty countdowns in both the data structure and the GUI
 	private void updatePenaltyCountDown() {
 		double diff = timerInterval / oneSecond;
-		for (int i = 0; i < numPlayers; i++) {
-			if (team1Countdown[i] != -1) { // not ejected
-				if (team1Countdown[i] > diff) {
-					team1Countdown[i] -= diff;
-				} else {
-					team1Countdown[i] = 0;
+		for (int j = 0; j < Constants.NUM_TEAMS; j++)
+			for (int i = 0; i < numPlayers; i++) {
+				if (teamPenaltyCountdown[j][i] != -1) { // not ejected
+					if (teamPenaltyCountdown[j][i] > diff) {
+						teamPenaltyCountdown[j][i] -= diff;
+					} else {
+						teamPenaltyCountdown[j][i] = 0;
+					}
 				}
 			}
-			if (team2Countdown[i] != -1) { // not ejected
-				if (team2Countdown[i] > diff) {
-					team2Countdown[i] -= diff;
-				} else {
-					team2Countdown[i] = 0;
-				}
-			}
-		}
 		updatePenaltyButtons();
 	}
 
 	private void updatePenaltyButtons() {
 		for (byte i = 0; i < numPlayers; i++) {
-			cmdTeam1[i].setPenalty(data.getPenalty(TEAM_0, i), team1Countdown[i]);
-			cmdTeam2[i].setPenalty(data.getPenalty(TEAM_1, i), team2Countdown[i]);
+			cmdTeam[TEAM_1][i].setPenalty(data.getPenalty(TEAM_1, i), teamPenaltyCountdown[TEAM_1][i]);
+			cmdTeam[TEAM_2][i].setPenalty(data.getPenalty(TEAM_2, i), teamPenaltyCountdown[TEAM_2][i]);
 
-			data.setSecsTillUnpenalised(TEAM_0, i, (short) (team1Countdown[i] == -1 ? data.getEstimatedSecs() : team1Countdown[i]));
-			data.setSecsTillUnpenalised(TEAM_1, i, (short) (team2Countdown[i] == -1 ? data.getEstimatedSecs() : team2Countdown[i]));
+			data.setSecsTillUnpenalised(TEAM_1, i, (short) (teamPenaltyCountdown[TEAM_1][i] == -1 ? data.getEstimatedSecs() : teamPenaltyCountdown[TEAM_1][i]));
+			data.setSecsTillUnpenalised(TEAM_2, i, (short) (teamPenaltyCountdown[TEAM_2][i] == -1 ? data.getEstimatedSecs() : teamPenaltyCountdown[TEAM_2][i]));
 		}
 	}
 
@@ -1435,7 +1411,7 @@ public class MainGUI extends javax.swing.JFrame {
 				special_event = SPECIAL_EVENT_READY;
 				gameButtons.setSelected(cmdReady.getModel(), true);
 				data.setGameState(Constants.STATE_READY);
-				unpenaliseAll(false);
+				unpenaliseAll(false, false);
 				setEventTitle("Ready");
 				eventSecs = rulebook.getReadySeconds();
 				startClock = true; // start the clock here - will be stopped
@@ -1443,20 +1419,22 @@ public class MainGUI extends javax.swing.JFrame {
 			}
 		} else if ((special_event == SPECIAL_EVENT_READY) || (data.getGameState() == Constants.STATE_READY)) {
 			if (special_event != SPECIAL_EVENT_READY) {
-				System.err.println("Weirdness in MainGUI.updateEventClock(): special_event should be READY");
+				logger.warning("Weirdness in MainGUI.updateEventClock(): special_event should be READY");
 			}
 			if (data.getGameState() != Constants.STATE_READY) {
 				setEventTitle(null);
 				special_event = SPECIAL_EVENT_NONE;
 				eventSecs = 0;
 			} else if (eventSecs <= 0) {
-				logger.info("Automatic switch to Set");
-				gameButtons.setSelected(cmdSet.getModel(), true);
-				data.setGameState(Constants.STATE_SET);
-				unpenaliseAll(false);
-				setEventTitle(null);
 				special_event = SPECIAL_EVENT_NONE;
 				eventSecs = 0;
+				if (rulebook.getAutomaticReady2Set()) {
+					logger.info("Automatic switch to Set");
+					gameButtons.setSelected(cmdSet.getModel(), true);
+					data.setGameState(Constants.STATE_SET);
+					unpenaliseAll(false, false);
+					setEventTitle(null);
+				}
 			}
 		} else if (special_event == SPECIAL_EVENT_HALFTIME) {
 			if (Math.abs(eventSecs - rulebook.getHalfTimeSeconds() / 2) < 0.001) {
@@ -1469,7 +1447,7 @@ public class MainGUI extends javax.swing.JFrame {
 				startClock = false;
 			}
 		} else {
-			System.err.println("Unknown event type in MainGUI.updateEventClock(): " + special_event + " - ignoring.");
+			logger.warning("Unknown event type in MainGUI.updateEventClock(): " + special_event + " - ignoring.");
 			special_event = SPECIAL_EVENT_NONE;
 			setEventTitle(null);
 			eventSecs = 0;
@@ -1508,16 +1486,14 @@ public class MainGUI extends javax.swing.JFrame {
 		int message = state.getMessage();
 		byte team;
 
-		System.out.println("received message from " + teamID + "/" + robotID + " : " + message);
+		logger.fine("received message from " + teamID + "/" + robotID + " : " + message);
 
-		if (teamID == data.getTeamNumber(TEAM_0)) {
-			// cmdTeam1[state.getRobotId()].setPlayerSeen();
-			team = TEAM_0;
-		} else if (teamID == data.getTeamNumber(TEAM_1)) {
-			// cmdTeam2[state.getRobotId()].setPlayerSeen();
+		if (teamID == data.getTeamNumber(TEAM_1)) {
 			team = TEAM_1;
+		} else if (teamID == data.getTeamNumber(TEAM_2)) {
+			team = TEAM_2;
 		} else {
-			System.out.println("Message from unknown team " + teamID);
+			System.out.println("received message from unkown team " + teamID + " (player " + robotID + ") : " + message);
 			return;
 		}
 
@@ -1528,29 +1504,37 @@ public class MainGUI extends javax.swing.JFrame {
 			case Constants.GAMECONTROLLER_RETURN_MSG_MAN_UNPENALISE: // robot has been manually unpenalised
 				unpenalisePlayer(team, (byte) robotID);
 				break;
-            case Constants.GAMECONTROLLER_RETURN_MSG_REQUEST_PICKUP: // robot is requesting for pick up
-                applyPenalty(team, robotID, Constants.PENALTY_SPL_REQUEST_FOR_PICKUP);
-                break;
+			case Constants.GAMECONTROLLER_RETURN_MSG_ALIVE: // nothing to do, just a placeholder for alive message
+				break;
 			default:
 				System.out.println("Unknown message, " + message + ", from player " + robotID + " on team " + teamID);
-
 				break;
 		}
+		
+		updateTimeLastSeen(team, (byte) robotID, System.currentTimeMillis());
 	}
+	
+	// update the time when a robot send the last package
+	public void updateTimeLastSeen(byte team, byte player, long time) {
+		data.updateTimeLastSeen(team, player, time);
+		cmdTeam[team][player].setPlayerSeen(time);
+	}	
 
 	private JCheckBox chkAutoPause;
 	private JComboBox cmbHalf;
+	private NamedComboBoxModel comboBoxModelHalf;
 
-	protected JComboBox goalColourTeam1;
-	protected PlayerButton[] cmdTeam1;
+	protected JComboBox[] goalColourTeam;
+	
+	protected PlayerButton[][] cmdTeam;
 
-	protected JComboBox goalColourTeam2;
-	protected PlayerButton[] cmdTeam2;
 
-	private JButton cmdTeam1DropIn;
-	private JToggleButton cmdTeam1KickOff;
-	private JButton cmdTeam1ScoreDown;
-	private JButton cmdTeam1ScoreUp;
+	private JToggleButton cmdDropBall;
+
+	private JButton[] cmdTeamDropIn;
+	private JToggleButton[] cmdTeamKickOff;
+	private JButton[] cmdTeamScoreDown;
+	private JButton[] cmdTeamScoreUp;
 
 	private JToggleButton cmdInitial;
 	private JToggleButton cmdReady;
@@ -1561,39 +1545,32 @@ public class MainGUI extends javax.swing.JFrame {
 	private ButtonGroup penaltyButtons;
 	private JToggleButton cmdInvisible;
 
-	private JButton cmdTeam2DropIn;
-	private JToggleButton cmdTeam2KickOff;
-	private JButton cmdTeam2ScoreDown;
-	private JButton cmdTeam2ScoreUp;
+	private JButton cmdSwitchTeams;
 
 	private JButton cmdTimeReset;
 	private JButton cmdTimeStart;
 	private ButtonGroup gameButtons;
 	private ButtonGroup kickOffButtons;
 
-	private JLabel lblTeam1Score;
-	private JLabel lblTeam1;
-	private JLabel lblTeam1Logo;
-	private JLabel lblTeam2Score;
-	private JLabel lblTeam2;
-	private JLabel lblTeam2Logo;
-	private JLabel lblTeam1PushCount;
-	private JLabel lblTeam2PushCount;
+	private JLabel[] lblTeamScore;
+	private JLabel[] lblTeam;
+	private JLabel[] lblTeamLogo;
+	private JLabel[] lblTeamPushCount;
+
+	
 	private TimeTextField lblTime;
 	private TimeTextField lblSpecialEventTime;
 
-	private JButton cmdTeam1TimeOut;
-	private JButton cmdTeam2TimeOut;
+	private JButton[] cmdTeamTimeOut;
+
 	private JButton cmdTimeOutDone;
 
 	private JPanel pnlSpecialEventTime;
-	private JPanel pnlTeam1;
-	private JPanel pnlTeam2;
+	private JPanel[] pnlTeam;
 	private JPanel pnlScore;
-	private JPanel pnlTeam1Score;
-	private JPanel pnlTeam2Score;
+	private JPanel[] pnlTeamScore;
+	private JPanel[] pnlTeamScoreUpDown;
 
-	private ImageIcon team1Logo;
-	private ImageIcon team2Logo;
+	private ImageIcon[] teamLogo;
 
 }

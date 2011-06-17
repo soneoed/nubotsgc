@@ -19,18 +19,18 @@ package org.robocup.gamecontroller;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.robocup.common.Constants;
+import org.robocup.common.rules.RuleBook;
+import org.robocup.common.util.LogFormatter;
 import org.robocup.gamecontroller.gui.MainGUI;
-import org.robocup.gamecontroller.logging.SingleLineFormatter;
 import org.robocup.gamecontroller.rules.HumanoidLeagueKidSizeRuleBook;
 import org.robocup.gamecontroller.rules.HumanoidLeagueTeenSizeRuleBook;
-import org.robocup.gamecontroller.rules.RuleBook;
 import org.robocup.gamecontroller.rules.StandardPlatformLeagueRuleBook;
 
 /*
@@ -75,6 +75,7 @@ public class GameController {
 		boolean debug = false;
 		boolean quiet = false;
 		int numPlayers = -1;
+		String configDir = null;
 
 		// check there are at least the blue and red team numbers
 		// the default league is spl
@@ -96,51 +97,67 @@ public class GameController {
 			if (args[i].equals(Constants.ARG_DEBUG)) {
 				debug = true;
 				System.out.println("Debugging on");
+				continue;
 			}
 
 			// look for the port switch
 			if (args[i].equals(Constants.ARG_PORT)) {
 				port = Integer.parseInt(args[i + 1]);
+				continue;
 			}
 
 			// look for the range switch
 			if (args[i].equals(Constants.ARG_RANGE)) {
 				range = Integer.parseInt(args[i + 1]);
+				continue;
 			}
 
 			// look for turned on quiet switch
 			if (args[i].equals(Constants.ARG_QUIET)) {
 				quiet = true;
 				System.out.println("Sound suppressed");
+				continue;
 			}
 
 			// look for the broadcast switch
 			if (args[i].equals(Constants.ARG_BROADCAST)) {
 				broadcast = args[i + 1];
+				continue;
 			}
 
 			// look for the number of players switch
 			if (args[i].equals(Constants.ARG_NUMPLAYERS)) {
 				numPlayers = Integer.parseInt(args[i + 1]);
+				continue;
 			}
 
 			// check if the gc is initialized for SPL
 			if (args[i].equals(Constants.ARG_SPL)) {
 				leagueType = leagueSpl;
+				continue;
 			}
 
 			// check if the gc is initialized for HL kid
 			if (args[i].equals(Constants.ARG_HLKID)) {
 				leagueType = leagueHlKid;
+				continue;
 			}
 			if (args[i].equals(Constants.ARG_HL)) {
 				leagueType = leagueHlKid;
+				continue;
 			}
 
 			// check if the gc is initialized for HL teen
 			if (args[i].equals(Constants.ARG_HLTEEN)) {
 				leagueType = leagueHlTeen;
+				continue;
 			}
+			
+			// check if the gc is initialized for HL teen
+			if (args[i].equals(Constants.ARG_CONFIGDIR)) {
+				configDir = args[i + 1];
+				continue;
+			}			
 		}
 
 		// set up logging
@@ -149,7 +166,7 @@ public class GameController {
 		logger.setUseParentHandlers(false);
 
 		ConsoleHandler consoleHandler = new ConsoleHandler();
-		consoleHandler.setFormatter(new SingleLineFormatter());
+		consoleHandler.setFormatter(new LogFormatter());
 		logger.addHandler(consoleHandler);
 
 		RuleBook rulebook = null;
@@ -160,28 +177,32 @@ public class GameController {
 		} else if (leagueType == leagueHlTeen) {
 			rulebook = new HumanoidLeagueTeenSizeRuleBook();
 		}
+		
+		if(configDir != null){
+			rulebook.setConfigDirectory(File.separator + configDir + File.separator + "teams.cfg");
+		}		
 
 		Properties properties = new Properties();
 		try {
 			InputStream in;
-			String resource = "/" + rulebook.getConfigDirectory() + "/" + "teams.cfg";
+			String resource = File.separator + rulebook.getConfigDirectory() + File.separator + "teams.cfg";
+			
 			File file = new File("config" + resource);
 			if (file.exists()) {
 				in = new FileInputStream("config" + resource);
+				properties.load(in);
 			} else {
-				in = getClass().getResourceAsStream(resource);
+				System.out.println("Error loading config file");
+				System.exit(0);				
 			}
-
-			properties.load(in);
-		} catch (IOException e) {
-			System.out.println(e.getMessage());
-			System.out.println("Error loading properties file");
-		}
+		} catch (Exception e) {
+			if(e.getMessage() != null) System.out.println(e.getMessage());
+		}		
 		teamNames[0] = properties.getProperty("" + teamNumbers[0], "Team " + teamNumbers[0]);
 		teamNames[1] = properties.getProperty("" + teamNumbers[1], "Team " + teamNumbers[1]);
 
-		logger.info(rulebook.getTeamName(0) + " is " + teamNames[0] + " (" + teamNumbers[0] + ")");
-		logger.info(rulebook.getTeamName(1) + " is " + teamNames[1] + " (" + teamNumbers[1] + ")");
+		logger.info(rulebook.getTeamColorName(0) + " is " + teamNames[0] + " (" + teamNumbers[0] + ")");
+		logger.info(rulebook.getTeamColorName(1) + " is " + teamNames[1] + " (" + teamNumbers[1] + ")");
 		logger.info("Using broadcast address: " + broadcast);
 		logger.info("Using port " + port + " for broadcast");
 

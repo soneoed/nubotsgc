@@ -15,24 +15,10 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package org.robocup.gamecontroller.gui;
+package org.robocup.common.net;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+public interface Provider {
 
-public class GameStateAdapter implements ActionListener {
-
-	protected MainGUI gui;
-	protected byte state;
-
-	public GameStateAdapter(MainGUI gui, byte state) {
-		super();
-		this.gui = gui;
-		this.state = state;
-	}
-
-	public void actionPerformed(ActionEvent evt) {
-		gui.setGameState(state);
-	}
+	public byte[] getAsByteArray();
 
 }

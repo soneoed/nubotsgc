@@ -23,7 +23,8 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.logging.Logger;
 
-import org.robocup.gamecontroller.Constants;
+import org.robocup.common.Constants;
+import org.robocup.common.net.Provider;
 
 /**
  * The Broadcast file contains the networking code of the program.

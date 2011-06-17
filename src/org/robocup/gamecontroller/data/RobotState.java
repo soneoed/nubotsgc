@@ -19,8 +19,8 @@ package org.robocup.gamecontroller.data;
 
 import java.nio.ByteBuffer;
 
-import org.robocup.gamecontroller.Constants;
-import org.robocup.gamecontroller.net.Provider;
+import org.robocup.common.Constants;
+import org.robocup.common.net.Provider;
 
 public class RobotState implements Provider {
 

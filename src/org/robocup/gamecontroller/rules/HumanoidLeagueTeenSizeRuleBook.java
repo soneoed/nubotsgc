@@ -19,29 +19,37 @@ package org.robocup.gamecontroller.rules;
 
 import java.awt.Color;
 
-import org.robocup.gamecontroller.Constants;
+import org.robocup.common.Constants;
+import org.robocup.common.rules.RuleBook;
 
 public class HumanoidLeagueTeenSizeRuleBook extends RuleBook {
 
 	protected void setup() {
 		setApplicationTitle("RoboCup HL-TeenSize GameController");
 		setConfigDirectory("hl-teen");
-		setNumPlayers(2);
+		setNumPlayers(5);
+
+		setDropBall(true);
 
 		setTimeSeconds(600);
+		setOvertimeSeconds(300);
 		setReadySeconds(30);
 		setTimeOutSeconds(120);
 		setPenaltyShootSeconds(60);
 		setHalfTimeSeconds(300);
 
+		setSwitchTeamColorBetweenHalfs(false);
+
 		setupTeams("Cyan", "Magenta", Color.CYAN, Color.MAGENTA);
 		setupGoals("Blue Goal", "Yellow Goal", true);
 
-		registerPenalty(Constants.PENALTY_HL_TEEN_BALL_MANIPULATION, "Ball Manipulation", 0);
-		registerPenalty(Constants.PENALTY_HL_TEEN_PHYSICAL_CONTACT, "Physical Contact", 10);
-		registerPenalty(Constants.PENALTY_HL_TEEN_ILLEGAL_ATTACK, "Illegal Attack", 20);
-		registerPenalty(Constants.PENALTY_HL_TEEN_ILLEGAL_DEFENSE, "Illegal Defense", 30);
-		registerPenalty(Constants.PENALTY_HL_TEEN_REQUEST_FOR_PICKUP, "Request For PickUp", 60);
+		registerPenalty(Constants.PENALTY_HL_TEEN_BALL_MANIPULATION, "Ball Manipulation (30s)", 30);
+		registerPenalty(Constants.PENALTY_HL_TEEN_PHYSICAL_CONTACT, "Physical Contact (30s)", 30);
+		registerPenalty(Constants.PENALTY_HL_TEEN_ILLEGAL_ATTACK, "Illegal Attack (30s)", 30);
+		registerPenalty(Constants.PENALTY_HL_TEEN_ILLEGAL_DEFENSE, "Illegal Defense (30s)", 30);
+		registerPenalty(Constants.PENALTY_HL_TEEN_REQUEST_FOR_PICKUP, "Request For PickUp (30s)", 30);
+		registerPenalty(Constants.PENALTY_HL_TEEN_REQUEST_FOR_SERVICE, "Request For Service (60s)", 60);
+		registerPenalty(Constants.PENALTY_HL_TEEN_REQUEST_FOR_PICKUP_2_SERVICE, "Upgrade PickUp to Service (+30s)", 30, true);
 	}
 
 }

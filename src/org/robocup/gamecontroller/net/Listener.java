@@ -23,7 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 
-import org.robocup.gamecontroller.Constants;
+import org.robocup.common.Constants;
 
 public class Listener implements Runnable {
 

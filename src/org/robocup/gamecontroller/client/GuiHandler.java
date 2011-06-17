@@ -19,7 +19,7 @@ package org.robocup.gamecontroller.client;
 
 import java.nio.ByteBuffer;
 
-import org.robocup.gamecontroller.data.GameState;
+import org.robocup.common.data.GameState;
 import org.robocup.gamecontroller.net.Handler;
 
 public class GuiHandler implements Handler {
