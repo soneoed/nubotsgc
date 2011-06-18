@@ -89,6 +89,7 @@ public class Constants {
 	public static final int GAMECONTROLLER_RETURN_MSG_MAN_PENALISE = 0;
 	public static final int GAMECONTROLLER_RETURN_MSG_MAN_UNPENALISE = 1;
 	public static final int GAMECONTROLLER_RETURN_MSG_ALIVE = 2;
+    public static final int GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_PICKUP = 3;
 
 	// team colors
 	public static final byte TEAM_CYAN = 0;

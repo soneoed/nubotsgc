@@ -44,6 +44,7 @@ public class PlayerButton extends JToggleButton {
 
 	enum Mode {
 		modeNORMAL,
+		modeREQUEST,		// additional mode for when a robot is autonomously requesting for a pickup
 		modeUNPENALIZE
 	};
 
@@ -71,9 +72,20 @@ public class PlayerButton extends JToggleButton {
 	public void setPenalty(short penalty, double seconds) {
 		this.penalty = penalty;
 		this.seconds = seconds;
-
-		mode = (penalty == Constants.PENALTY_NONE) ? Mode.modeNORMAL : Mode.modeUNPENALIZE;
 		
+		if (mode == Mode.modeREQUEST)
+			mode = (penalty == Constants.PENALTY_NONE) ? Mode.modeREQUEST : Mode.modeUNPENALIZE;
+		else
+			mode = (penalty == Constants.PENALTY_NONE) ? Mode.modeNORMAL : Mode.modeUNPENALIZE;
+
+		updateLabel();
+	}
+	
+	public void setRequest(boolean request) {
+		if (mode == Mode.modeREQUEST && request == false)
+			this.mode = Mode.modeNORMAL;
+		else if (mode == Mode.modeNORMAL && request == true)
+			this.mode = Mode.modeREQUEST;
 		updateLabel();
 	}
 	
@@ -117,6 +129,14 @@ public class PlayerButton extends JToggleButton {
 				this.setToolTipText("Click to select " + color + " robot " + player);
 				setBackground(UIManager.getColor("Button.background"));
 				blink = true;
+				break;
+			case modeREQUEST:
+				this.setText("<html><center>Player " + player + "</br> Request for pickup<center></html>");
+				this.setToolTipText("Click to allow " + color + " robot " + player + " to be picked up");
+				if (blink)
+					setBackground(Color.YELLOW);
+				else
+					setBackground(UIManager.getColor("Button.background"));
 				break;
 			case modeUNPENALIZE:
 				

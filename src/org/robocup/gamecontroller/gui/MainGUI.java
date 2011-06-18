@@ -175,7 +175,7 @@ public class MainGUI extends javax.swing.JFrame {
 		try {
 			logHandler = new FileHandler(Constants.LOG_FILENAME_GC, true); // append to logfile
 			logger.addHandler(logHandler);
-			logger.setLevel(Level.INFO);
+			logger.setLevel(Level.FINE);
 			LogFormatter formatter = new LogFormatter();
 		    logHandler.setFormatter(formatter);
 		} catch (IOException e) {
@@ -1016,6 +1016,14 @@ public class MainGUI extends javax.swing.JFrame {
 			// data.resetPenalties();
 		}	
 	}
+	
+	// wrapper for GUIIgnore request for pickups to all GUI elements
+	private void clearRequestsAll()
+	{
+		for (byte team = 0; team < Constants.NUM_TEAMS; team++) 
+			for (byte player = 0; player < numPlayers; player++) 
+				cmdTeam[team][player].setRequest(false);
+	}
 
 	// reset the clock
 	private void cmdTimeReset_clicked(MouseEvent evt) {
@@ -1143,6 +1151,14 @@ public class MainGUI extends javax.swing.JFrame {
 		unselectPenalty(); // clear all selections after a penalty is given
 		updatePenaltyButtons();
 	}
+    
+    // this function is called when a return packet that requests for a pickup is received
+    // it asks the user of the GC whether the robot can be picked up (and replaced)
+    private void requestForPickup(short team, short player) {
+        logger.info("Request for pickup from " + teamNames[team] + "(" + rulebook.getTeamColorName(team) + ") " + (player + 1)); 
+        PlayerButton button = cmdTeam[team][player];
+        button.setRequest(true);
+    }
 
 	private void applyAddonPenalty(short team, short player, short code) {
 		short time = rulebook.getPenaltyTime(code);
@@ -1191,6 +1207,14 @@ public class MainGUI extends javax.swing.JFrame {
 					selectedPlayerNumber = -1;
 				}
 			}
+		} else if (button.mode == Mode.modeREQUEST) {
+			if (selectedPenalty != Constants.PENALTY_NONE) {			// if one of the penalties are selected then 'over rule' the request for pickup
+				applyPenalty((short) team, (short) player, selectedPenalty);
+				button.mode = Mode.modeUNPENALIZE;
+			} else {
+				applyPenalty((short) team, (short) player, Constants.PENALTY_SPL_REQUEST_FOR_PICKUP);
+				button.mode = Mode.modeUNPENALIZE;
+			}
 		} else {
 			if (selectedPenalty != Constants.PENALTY_NONE && rulebook.getPenaltyIsAddon(selectedPenalty)) {
 				applyAddonPenalty((short) team, (short) player, selectedPenalty);
@@ -1222,6 +1246,7 @@ public class MainGUI extends javax.swing.JFrame {
 		} else {
 			if (selectedPenalty != code) {
 				selectedPenalty = code;
+				clearRequestsAll();
 			} else {
 				cmdInvisible.setSelected(true);
 				selectedPenalty = Constants.PENALTY_NONE;
@@ -1506,6 +1531,9 @@ public class MainGUI extends javax.swing.JFrame {
 				break;
 			case Constants.GAMECONTROLLER_RETURN_MSG_ALIVE: // nothing to do, just a placeholder for alive message
 				break;
+            case Constants.GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_PICKUP:	// robot is asking to be picked up
+                requestForPickup(team, robotID);
+                break;
 			default:
 				System.out.println("Unknown message, " + message + ", from player " + robotID + " on team " + teamID);
 				break;
