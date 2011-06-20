@@ -18,6 +18,7 @@
 package org.robocup.gamecontroller.gui;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -156,12 +157,13 @@ public class MainGUI extends javax.swing.JFrame {
 
 		handler = new GuiHandler();
 		handler.setGui(this);
-		listener = new Listener(3838, handler);
+
+		initComponents();
+        
+        listener = new Listener(3838, handler);
 		// listener = new Listener(port, handler);
 		Thread t = new Thread(listener);
 		t.start();
-
-		initComponents();
 
 		// start timer object
 		new Timer(timerInterval, clock).start();
@@ -405,7 +407,7 @@ public class MainGUI extends javax.swing.JFrame {
 
 		pnlTeams.setBorder(new TitledBorder(null, "Teams", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("Dialog", 1, 12)));
 
-		cmdTeam = new PlayerButton[Constants.NUM_TEAMS][numPlayers];
+		cmdTeam = new PlayerButton[Constants.NUM_TEAMS][Constants.MAX_NUM_PLAYERS];
 		
 		pnlTeam = new JPanel[Constants.NUM_TEAMS];
 		lblTeamPushCount = new JLabel[Constants.NUM_TEAMS];
@@ -434,15 +436,14 @@ public class MainGUI extends javax.swing.JFrame {
 				});				
 			}			
 			
-			for (byte i = 0; i < numPlayers; i++) {
-				int player = i + 1;
-	
+            for (byte i = 0; i < Constants.MAX_NUM_PLAYERS; i++) {
+                int player = i + 1;
 				cmdTeam[j][i] = new PlayerButton(player, rulebook.getTeamColorName(j));
 				cmdTeam[j][i].setMargin(new Insets(2, 5, 2, 5));
 				cmdTeam[j][i].addActionListener(new PlayerAdapter(this, j, i));
-	
+            }
+			for (byte i = 0; i < numPlayers; i++)
 				pnlTeam[j].add(cmdTeam[j][i]);
-			}			
 			
 			pnlTeams.add(pnlTeam[j]);
 			
@@ -457,7 +458,7 @@ public class MainGUI extends javax.swing.JFrame {
 			}
 			
 		}
-
+        
 		return pnlTeams;
 	}
 
@@ -1003,7 +1004,7 @@ public class MainGUI extends javax.swing.JFrame {
 	private void unpenaliseAll(boolean includeEjected, boolean penaltyTimeStayOnStateChange) {
 		if(!rulebook.getPenaltyTimeStayOnStateChange() || penaltyTimeStayOnStateChange) {
 			for (byte team = 0; team < Constants.NUM_TEAMS; team++) {
-				for (byte player = 0; player < numPlayers; player++) {
+				for (byte player = 0; player < Constants.MAX_NUM_PLAYERS; player++) {
 					if (includeEjected || teamPenaltyCountdown[team][player] != -1) {
 						if(!rulebook.getPenaltyStayOnStateChange(teamPenaltyReason[team][player])) {
 							unpenalisePlayer(team, player);
@@ -1021,7 +1022,7 @@ public class MainGUI extends javax.swing.JFrame {
 	private void clearRequestsAll()
 	{
 		for (byte team = 0; team < Constants.NUM_TEAMS; team++) 
-			for (byte player = 0; player < numPlayers; player++) 
+			for (byte player = 0; player < cmdTeam[team].length; player++) 
 				cmdTeam[team][player].setRequest(false);
 	}
 
@@ -1145,12 +1146,64 @@ public class MainGUI extends javax.swing.JFrame {
 			lblTeamPushCount[TEAM_1].setText("" + rulebook.getPushingCounter(TEAM_1) + "");
 			lblTeamPushCount[TEAM_2].setText("" + rulebook.getPushingCounter(TEAM_2) + "");
 		}
+        
+        if (code == Constants.PENALTY_SPL_REQUEST_FOR_PICKUP) {
+            // if the penalty is a request for pickup check to see if there is a sub waiting
+            int subplayer = getSubstitutePlayerNumber(team);
+            if (subplayer != -1) {
+                // if there is swap the penalised player and the sub
+                logger.info("Substitute " + subplayer + " replacing " + player);
+                data.setPenalty((byte) team, (byte) subplayer, code);
+                teamPenaltyCountdown[team][subplayer] = time;
+                teamPenaltyReason[team][subplayer] = code;
+                
+                Component[] comps = pnlTeam[team].getComponents();
+                int locationforsub = 0;
+                for (int i = 0; i < comps.length; i++)
+                {
+                    try {
+                        PlayerButton button = (PlayerButton) comps[i];
+                        if (button.player-1 == player)
+                            locationforsub = i;
+                    } catch (ClassCastException e) {}
+                }
+                
+                pnlTeam[team].remove(cmdTeam[team][player]);
+                pnlTeam[team].add(cmdTeam[team][subplayer], locationforsub);
+            }
+        }
 
 		// System.out.println("usePushingCounter: " + rulebook.getUsePushingCounter() + " code: " + code + " team1 push: " + rulebook.getPushingCounter(TEAM_0) + " team2 push: " + rulebook.getPushingCounter(TEAM_1));
 
 		unselectPenalty(); // clear all selections after a penalty is given
 		updatePenaltyButtons();
 	}
+    
+    // this function returns the player number of the substitute robot on game controller. If there is no sub, -1 is returned
+    private int getSubstitutePlayerNumber(short team) {
+        for (int i = 0; i < Constants.MAX_NUM_PLAYERS; i++) {
+            if (!isOnField(team, i) && (System.currentTimeMillis() - data.getTimeLastSeen((byte) team, (byte) i) < Constants.LASTSEEN_INDICATOR_THRESHOLD[0]))
+                return i;
+        }
+        return -1;
+    }
+    
+    // this function returns true if the robot is playing the game
+    private boolean isOnField(short team, int player) {
+        Component[] comps = pnlTeam[team].getComponents();
+        for (int i = 0; i < comps.length; i++)
+        {
+            try {
+                PlayerButton button = (PlayerButton) comps[i];
+                if (button.player-1 == player)
+                    return true;
+            } catch (ClassCastException e) {
+                
+            }
+            
+        }
+        return false;
+    }
     
     // this function is called when a return packet that requests for a pickup is received
     // it asks the user of the GC whether the robot can be picked up (and replaced)
@@ -1176,7 +1229,7 @@ public class MainGUI extends javax.swing.JFrame {
 	private void unselectPenalty() {
 		selectedPenalty = Constants.PENALTY_NONE;
 		cmdInvisible.setSelected(true); // don't select any penalty
-		for (int i = 0; i < numPlayers; i++) {
+		for (int i = 0; i < cmdTeam[TEAM_1].length; i++) {
 			cmdTeam[TEAM_1][i].setSelected(false);
 			cmdTeam[TEAM_2][i].setSelected(false);
 		}
@@ -1232,7 +1285,7 @@ public class MainGUI extends javax.swing.JFrame {
 		short selectedTeam = TEAM_1;
 		boolean playerSelected = false;
 		for (byte j = 0; j < Constants.NUM_TEAMS; j++)
-			for (byte i = 0; i < numPlayers; i++) {
+			for (byte i = 0; i < cmdTeam[j].length; i++) {
 				if (cmdTeam[j][i].isSelected()) {
 					selectedPlayer = i;
 					selectedTeam = j;
@@ -1401,7 +1454,7 @@ public class MainGUI extends javax.swing.JFrame {
 	private void updatePenaltyCountDown() {
 		double diff = timerInterval / oneSecond;
 		for (int j = 0; j < Constants.NUM_TEAMS; j++)
-			for (int i = 0; i < numPlayers; i++) {
+			for (int i = 0; i < teamPenaltyCountdown[j].length; i++) {
 				if (teamPenaltyCountdown[j][i] != -1) { // not ejected
 					if (teamPenaltyCountdown[j][i] > diff) {
 						teamPenaltyCountdown[j][i] -= diff;
@@ -1414,7 +1467,7 @@ public class MainGUI extends javax.swing.JFrame {
 	}
 
 	private void updatePenaltyButtons() {
-		for (byte i = 0; i < numPlayers; i++) {
+		for (byte i = 0; i < cmdTeam[TEAM_1].length; i++) {
 			cmdTeam[TEAM_1][i].setPenalty(data.getPenalty(TEAM_1, i), teamPenaltyCountdown[TEAM_1][i]);
 			cmdTeam[TEAM_2][i].setPenalty(data.getPenalty(TEAM_2, i), teamPenaltyCountdown[TEAM_2][i]);
 

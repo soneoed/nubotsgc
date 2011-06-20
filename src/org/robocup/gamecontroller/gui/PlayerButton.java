@@ -32,7 +32,7 @@ public class PlayerButton extends JToggleButton {
 	 */
 	private static final long serialVersionUID = -1942990813640148837L;
 
-	protected int player;
+	public int player;
 	protected String color;
 	protected long lastSeen = -1;
 	protected long lastBlinkChange = 0;

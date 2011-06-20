@@ -41,7 +41,7 @@ public class GuiHandler implements Handler {
 		short robotID = state.getRobotId();
 
 		// check for illegal robot IDs sent by the robots
-		success = success && (robotID >= 0 && robotID < gui.numPlayers);
+		//success = success && (robotID >= 0 && robotID < gui.numPlayers);
 
 		if (success) {
 			gui.updateRobot(state);
