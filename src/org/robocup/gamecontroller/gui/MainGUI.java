@@ -444,6 +444,11 @@ public class MainGUI extends javax.swing.JFrame {
             }
 			for (byte i = 0; i < numPlayers; i++)
 				pnlTeam[j].add(cmdTeam[j][i]);
+            for (byte i = (byte) numPlayers; i < Constants.MAX_NUM_PLAYERS; i++) {
+                // penalise all of the extra players (making them substitutes)
+                data.setPenalty(j, i, Constants.PENALTY_SPL_SUBSTITUTE);
+                teamPenaltyReason[j][i] = Constants.PENALTY_SPL_SUBSTITUTE;
+            }
 			
 			pnlTeams.add(pnlTeam[j]);
 			
@@ -1147,8 +1152,8 @@ public class MainGUI extends javax.swing.JFrame {
 			lblTeamPushCount[TEAM_2].setText("" + rulebook.getPushingCounter(TEAM_2) + "");
 		}
         
-        if (code == Constants.PENALTY_SPL_REQUEST_FOR_PICKUP) {
-            // if the penalty is a request for pickup check to see if there is a sub waiting
+        if (code == Constants.PENALTY_SPL_SUBSTITUTE) {
+            // if the penalty is a request for substitution check to see if there is a sub waiting
             int subplayer = getSubstitutePlayerNumber(team);
             if (subplayer != -1) {
                 // if there is swap the penalised player and the sub
@@ -1207,8 +1212,8 @@ public class MainGUI extends javax.swing.JFrame {
     
     // this function is called when a return packet that requests for a pickup is received
     // it asks the user of the GC whether the robot can be picked up (and replaced)
-    private void requestForPickup(short team, short player) {
-        logger.info("Request for pickup from " + teamNames[team] + "(" + rulebook.getTeamColorName(team) + ") " + (player + 1)); 
+    private void requestForSubstitute(short team, short player) {
+        logger.info("Request for subsitute from " + teamNames[team] + "(" + rulebook.getTeamColorName(team) + ") " + (player + 1)); 
         PlayerButton button = cmdTeam[team][player];
         button.setRequest(true);
     }
@@ -1261,11 +1266,11 @@ public class MainGUI extends javax.swing.JFrame {
 				}
 			}
 		} else if (button.mode == Mode.modeREQUEST) {
-			if (selectedPenalty != Constants.PENALTY_NONE) {			// if one of the penalties are selected then 'over rule' the request for pickup
+			if (selectedPenalty != Constants.PENALTY_NONE) {			// if one of the penalties are selected then 'over rule' the request for substitution
 				applyPenalty((short) team, (short) player, selectedPenalty);
 				button.mode = Mode.modeUNPENALIZE;
 			} else {
-				applyPenalty((short) team, (short) player, Constants.PENALTY_SPL_REQUEST_FOR_PICKUP);
+				applyPenalty((short) team, (short) player, Constants.PENALTY_SPL_SUBSTITUTE);
 				button.mode = Mode.modeUNPENALIZE;
 			}
 		} else {
@@ -1584,8 +1589,8 @@ public class MainGUI extends javax.swing.JFrame {
 				break;
 			case Constants.GAMECONTROLLER_RETURN_MSG_ALIVE: // nothing to do, just a placeholder for alive message
 				break;
-            case Constants.GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_PICKUP:	// robot is asking to be picked up
-                requestForPickup(team, robotID);
+            case Constants.GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_SUBSTITUTION:	// robot is asking to be picked up
+                requestForSubstitute(team, robotID);
                 break;
 			default:
 				System.out.println("Unknown message, " + message + ", from player " + robotID + " on team " + teamID);

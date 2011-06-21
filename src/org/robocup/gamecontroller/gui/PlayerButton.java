@@ -131,7 +131,7 @@ public class PlayerButton extends JToggleButton {
 				blink = true;
 				break;
 			case modeREQUEST:
-				this.setText("<html><center>Player " + player + "</br> Request for pickup<center></html>");
+				this.setText("<html><center>Player " + player + "</br> Request for substitution<center></html>");
 				this.setToolTipText("Click to allow " + color + " robot " + player + " to be picked up");
 				if (blink)
 					setBackground(Color.YELLOW);

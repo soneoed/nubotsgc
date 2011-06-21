@@ -50,6 +50,7 @@ public class StandardPlatformLeagueRuleBook extends RuleBook {
 		registerPenalty(Constants.PENALTY_SPL_LEAVING_THE_FIELD, "Leaving the Field", 30);
 		registerPenalty(Constants.PENALTY_SPL_PLAYING_WITH_HANDS, "Playing with Hands", 30);
 		registerPenalty(Constants.PENALTY_SPL_REQUEST_FOR_PICKUP, "Request for Pick-up", 30, false, true);
+        registerPenalty(Constants.PENALTY_SPL_SUBSTITUTE, "Substitution", 30, false, true);
 
 		setUsePushingCounter(true);
 	}

@@ -89,7 +89,7 @@ public class Constants {
 	public static final int GAMECONTROLLER_RETURN_MSG_MAN_PENALISE = 0;
 	public static final int GAMECONTROLLER_RETURN_MSG_MAN_UNPENALISE = 1;
 	public static final int GAMECONTROLLER_RETURN_MSG_ALIVE = 2;
-    public static final int GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_PICKUP = 3;
+    public static final int GAMECONTROLLER_RETURN_MSG_REQUEST_FOR_SUBSTITUTION = 3;
 
 	// team colors
 	public static final byte TEAM_CYAN = 0;
@@ -124,6 +124,7 @@ public class Constants {
 	public static final short PENALTY_SPL_LEAVING_THE_FIELD = 6;
 	public static final short PENALTY_SPL_PLAYING_WITH_HANDS = 7;
 	public static final short PENALTY_SPL_REQUEST_FOR_PICKUP = 8;
+	public static final short PENALTY_SPL_SUBSTITUTE = 9;
 	// HL Kid Size
 	public static final short PENALTY_HL_KID_BALL_MANIPULATION = 1;
 	public static final short PENALTY_HL_KID_PHYSICAL_CONTACT = 2;
