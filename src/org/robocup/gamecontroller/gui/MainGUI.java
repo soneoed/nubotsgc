@@ -1158,7 +1158,7 @@ public class MainGUI extends javax.swing.JFrame {
             if (subplayer != -1) {
                 // if there is swap the penalised player and the sub
                 logger.info("Substitute " + subplayer + " replacing " + player);
-                data.setPenalty((byte) team, (byte) subplayer, code);
+                data.setPenalty((byte) team, (byte) subplayer, Constants.PENALTY_SPL_REQUEST_FOR_PICKUP);
                 teamPenaltyCountdown[team][subplayer] = time;
                 teamPenaltyReason[team][subplayer] = code;
                 
